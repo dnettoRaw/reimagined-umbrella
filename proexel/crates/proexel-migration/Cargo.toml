@@ -1,0 +1,18 @@
+[package]
+name = "proexel-migration"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+proexel-application.workspace = true
+proexel-domain.workspace = true
+proexel-infrastructure.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[[bin]]
+name = "proexel-migrate"
+path = "src/main.rs"

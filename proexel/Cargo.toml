@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "apps/service",
+    "crates/proexel-application",
+    "crates/proexel-domain",
+    "crates/proexel-infrastructure",
+    "crates/proexel-migration",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.89"
+license = "MIT"
+version = "0.1.0"
+publish = false
+
+[workspace.dependencies]
+proexel-application = { path = "crates/proexel-application" }
+proexel-domain = { path = "crates/proexel-domain" }
+proexel-infrastructure = { path = "crates/proexel-infrastructure" }
+proexel-migration = { path = "crates/proexel-migration" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

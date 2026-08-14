@@ -1,0 +1,199 @@
+manifest_version = 1
+application_id = "proexel"
+application_version = "0.1.0"
+display_name = "PROEXEL"
+vendor = "PROEXEL"
+service_id = "proexel.service"
+leadership = []
+dependencies = []
+modules = []
+feature_flags = {}
+metadata = { domain_schema = "1" }
+
+[runtime]
+minimum_runtime_version = "1.0.0-rc.3"
+protocol_version = "1"
+required_features = []
+
+[[capabilities]]
+id = "proexel.valves.create"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.valves.update"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.maintenance.register"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.orders.create"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.orders.change_status"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.purchasing.create_restock_request"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.purchasing.review_restock_request"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.stock.adjust"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.stock.upsert_item"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.suppliers.create"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.suppliers.update"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.overview.get"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.valves.list"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.maintenance.list"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.orders.list"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.purchasing.list_restock_requests"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.stock.list"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.suppliers.list"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.audit.list"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.reports.get"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[jobs]
+enabled = false
+max_concurrency = 0
+retry_limit = 0
+
+[storage]
+durability = "local"
+minimum_bytes = 0
+shared = false
+
+[scheduler]
+required = false
+max_concurrency = 0
+
+[health]
+startup_grace_ms = 30000
+heartbeat_interval_ms = 10000
+failure_threshold = 3
+
+[update]
+channel = "stable"
+automatic = false

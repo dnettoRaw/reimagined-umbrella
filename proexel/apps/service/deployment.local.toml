@@ -1,0 +1,27 @@
+manifest_version = 1
+installation_id = "proexel-local"
+application_id = "proexel"
+mode = "standalone"
+secrets = { runtime_security = "file:target/runtime/runtime-security.secret" }
+paths = { storage = "target/runtime/storage", backup = "target/runtime/backups" }
+volumes = []
+adapters = {}
+environment = {}
+
+[supervisor.watchdog]
+enabled = true
+check_interval_ms = 1000
+stall_timeout_ms = 15000
+
+[storage]
+provider_id = "file"
+settings = {}
+secret_refs = {}
+
+[network]
+listen_addresses = ["127.0.0.1:39400"]
+peer_transport = "http"
+command_transport = "http"
+
+[network.tls]
+enabled = false

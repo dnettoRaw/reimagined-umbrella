@@ -1,0 +1,71 @@
+{
+  "valves": [
+    {
+      "tag": "FV 20.1",
+      "zona": "Linha 2",
+      "marca": "Samson",
+      "serie": "LEG-2001",
+      "kit": "kit fv-201",
+      "dn": "50",
+      "tipo": "Controle",
+      "atuador": "Pneumatico",
+      "fabricacao": "2021-06-15"
+    }
+  ],
+  "maintenance_records": [
+    {
+      "tag": "fv 20.1",
+      "date": "2026-07-10",
+      "technician": "Tecnico legado",
+      "type": "preventiva",
+      "service": "Inspecao e troca de vedacao",
+      "kitChanged": true,
+      "signature": "legacy-signature-001"
+    }
+  ],
+  "orders": [
+    {
+      "zona": "Linha 2",
+      "valveTag": "FV 20.1",
+      "observacoes": "Verificar resposta do atuador",
+      "priority": "alta",
+      "status": "aberta",
+      "createdBy": "Supervisor legado",
+      "tecnico": "Tecnico legado",
+      "data_programada": "2026-08-20"
+    }
+  ],
+  "restock_requests": [
+    {
+      "ref": "kit fv-201",
+      "description": "Saldo proximo do minimo",
+      "suggested_by": "Tecnico legado",
+      "status": "pendente"
+    }
+  ],
+  "stock": [
+    {
+      "kit": "kit fv-201",
+      "quantity": 4,
+      "minQuantity": 2,
+      "brand": "Samson",
+      "location": "Almoxarifado A"
+    }
+  ],
+  "suppliers": [
+    {
+      "name": "Fornecedor Exemplo",
+      "contact": "+351 210 000 000",
+      "email": "compras@example.invalid",
+      "website": "https://example.invalid",
+      "notes": "Registro demonstrativo para validar a importacao",
+      "created_by": "Compras legado"
+    }
+  ],
+  "valve_photos": [
+    {
+      "tag": "FV 20.1",
+      "storage_path": "legacy/valves/fv-20-1.jpg"
+    }
+  ]
+}
