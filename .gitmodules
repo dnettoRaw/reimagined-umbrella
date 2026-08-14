@@ -1,0 +1,3 @@
+[submodule "core/AppCore-Runtime"]
+	path = core/AppCore-Runtime
+	url = https://github.com/dnettoRaw/AppCore-Runtime.git
