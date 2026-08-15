@@ -46,7 +46,17 @@ files over 500 lines and keeps `mod.rs` limited to declarations and re-exports.
 Pushes and pull requests targeting the `release` branch run the release workflow
 in `.github/workflows/release-build.yml`. It validates Rust and web code, builds
 optimized Linux binaries and uploads standalone Rust and Next.js artifacts for
-30 days. The workflow can also be started manually with `workflow_dispatch`.
+30 days. A successful push to `release` also creates a GitHub Release tagged as
+`release-<run number>`, marks it as Latest and attaches the standalone web build
+plus Rust executable packages for Linux x64, Windows x64 and macOS ARM64.
+Pull requests and manual runs validate and retain artifacts without publishing a
+GitHub Release.
+
+Because AppCore is a private repository, configure a repository Actions secret
+named `APPCORE_REPOSITORY_TOKEN`. Use a fine-grained token with read-only
+`Contents` access to `dnettoRaw/AppCore-Runtime`; it does not need access to this
+repository. The workflow checks out the exact AppCore commit pinned by the
+submodule entry.
 
 For the web application:
 
@@ -69,6 +79,13 @@ Photo bytes default to
 `PROEXEL_ATTACHMENTS_DIR` to an absolute private path in deployed environments.
 Each attachment is limited to 8 MiB. Canonical state and migration input files
 are limited to 64 MiB and are size-checked before being loaded into memory.
+
+Each platform release package contains only the all-in-one `proexel-service`
+executable. Application and deployment defaults are embedded in the binary. On
+first start it materializes its local runtime configuration, creates a private
+runtime secret and stores canonical data under `target/runtime` beside the
+executable. Explicit AppCore manifest environment variables still override the
+embedded defaults.
 
 ## Local AppCore smoke test
 

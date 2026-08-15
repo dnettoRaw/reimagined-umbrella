@@ -83,6 +83,10 @@ fn seed_users_from_environment(store: &JsonFileStore) -> Result<(), String> {
 }
 
 pub(crate) fn run() {
+    if let Err(error) = crate::release_runtime::configure() {
+        eprintln!("proexel release configuration failed: {error}");
+        std::process::exit(1);
+    }
     let store = match JsonFileStore::new(state_path()) {
         Ok(store) => store,
         Err(error) => {
