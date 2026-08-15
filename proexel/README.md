@@ -43,6 +43,11 @@ cargo test --manifest-path proexel/Cargo.toml
 The structural check covers production Rust in PROEXEL and AppCore. It rejects
 files over 500 lines and keeps `mod.rs` limited to declarations and re-exports.
 
+Pushes and pull requests targeting the `release` branch run the release workflow
+in `.github/workflows/release-build.yml`. It validates Rust and web code, builds
+optimized Linux binaries and uploads standalone Rust and Next.js artifacts for
+30 days. The workflow can also be started manually with `workflow_dispatch`.
+
 For the web application:
 
 ```bash

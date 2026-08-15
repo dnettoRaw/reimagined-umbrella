@@ -1,0 +1,128 @@
+name: Release build
+
+on:
+  push:
+    branches:
+      - release
+  pull_request:
+    branches:
+      - release
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  rust:
+    name: Rust release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository and AppCore
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust builds
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            proexel -> target
+            core/AppCore-Runtime -> target
+
+      - name: Check Rust structure
+        run: ./proexel/scripts/check-rust-structure.sh
+
+      - name: Check formatting
+        working-directory: proexel
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        working-directory: proexel
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Run tests
+        working-directory: proexel
+        run: cargo test --workspace --locked
+
+      - name: Build optimized binaries
+        working-directory: proexel
+        run: cargo build --workspace --release --locked
+
+      - name: Package Rust binaries
+        working-directory: proexel
+        run: |
+          mkdir -p release/rust
+          cp target/release/proexel-service release/rust/
+          cp target/release/proexel-migrate release/rust/
+          tar -czf release/proexel-rust-linux-x64.tar.gz -C release/rust .
+
+      - name: Upload Rust artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proexel-rust-linux-x64-${{ github.sha }}
+          path: proexel/release/proexel-rust-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  web:
+    name: Web release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: proexel/apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: proexel/apps/web
+        run: npm ci
+
+      - name: Check formatting and lint
+        working-directory: proexel/apps/web
+        run: npm run check
+
+      - name: Check TypeScript
+        working-directory: proexel/apps/web
+        run: npx tsc --noEmit
+
+      - name: Build standalone application
+        working-directory: proexel/apps/web
+        run: npm run build
+
+      - name: Package web application
+        working-directory: proexel/apps/web
+        run: |
+          mkdir -p release/web/.next
+          cp -R .next/standalone/. release/web/
+          cp -R .next/static release/web/.next/static
+          tar -czf release/proexel-web-linux-x64.tar.gz -C release/web .
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proexel-web-linux-x64-${{ github.sha }}
+          path: proexel/apps/web/release/proexel-web-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 30

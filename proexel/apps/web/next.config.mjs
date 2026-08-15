@@ -2,6 +2,7 @@
 const nextConfig = {
   agentRules: false,
   distDir: process.env.PROEXEL_NEXT_DIST_DIR || ".next",
+  output: "standalone",
   reactCompiler: true,
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
