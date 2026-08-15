@@ -14,3 +14,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   return commandResponse("proexel.orders.change_status", request);
 }
+
+export async function DELETE(request: Request) {
+  return commandResponse("proexel.orders.delete", request);
+}

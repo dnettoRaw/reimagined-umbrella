@@ -112,6 +112,7 @@ export function CommandDialog({
                           name={field.name}
                           required={field.required}
                           placeholder={field.placeholder}
+                          defaultValue={typeof field.defaultValue === "string" ? field.defaultValue : undefined}
                         />
                       ) : field.type === "select" ? (
                         <select

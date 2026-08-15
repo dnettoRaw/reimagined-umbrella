@@ -32,12 +32,16 @@ untrusted network.
 | `APPCORE_APPLICATION_MANIFEST` | Rust service | Yes | Path to `application.toml` |
 | `APPCORE_DEPLOYMENT_MANIFEST` | Rust service | Yes | Path to the selected deployment manifest |
 | `PROEXEL_DATA_FILE` | Rust service | No | Overrides the canonical JSON state path |
+| `PROEXEL_ATTACHMENTS_DIR` | Next.js | No | Protected photo/signature root; defaults beside service runtime storage |
 | `PROEXEL_SERVICE_URL` | Next.js | Yes | AppCore service base URL, normally `http://127.0.0.1:39400` |
 | `PROEXEL_SERVICE_TOKENS` | Next.js | Recommended | JSON map from capability name to scoped bearer token |
 | `PROEXEL_SERVICE_TOKEN` | Next.js | Compatibility only | Generic fallback token when no scoped map entry exists |
 | `PROEXEL_SESSION_SECRET` | Next.js | Yes | Random HMAC secret, at least 32 characters |
 | `PROEXEL_AUTH_USERS` | Next.js | Yes | JSON array of server-side users and scrypt hashes |
 | `PROEXEL_DEV_TTL_MS` | Dev launcher | No | Scoped token lifetime; defaults to 10,800,000 ms (3 hours) |
+| `PROEXEL_WEB_PORT` | Dev/E2E launcher | No | Next.js port; defaults to `3000` |
+| `PROEXEL_DEPLOYMENT_MANIFEST` | Dev/E2E launcher | No | Alternate AppCore deployment manifest |
+| `PROEXEL_NEXT_DIST_DIR` | Next.js | No | Alternate build directory for isolated test runs |
 
 The checked-in starting template is `proexel/.env.example`; the table above is
 the complete documented surface. Environment files must remain untracked and
@@ -95,5 +99,5 @@ Before accepting traffic:
 3. Confirm `PROEXEL_SESSION_SECRET` is present and at least 32 characters.
 4. Confirm every configured user has a valid role and scrypt hash.
 5. Confirm every capability used by the web adapter has a scoped token.
-6. Confirm the state and backup directories are owned by the runtime account.
+6. Confirm state, attachment and backup directories are owned by the runtime account.
 7. Call `/v1/health` and perform an authenticated overview query.

@@ -92,7 +92,7 @@ The maintained implementation gate is
 [`functional-parity-checklist.md`](functional-parity-checklist.md). Since this
 discovery map was written, the rebuild has implemented and tested maintenance
 health policy, idempotent maintenance stock debit, the non-negative stock
-invariant, centralized audit events, canonical report datasets, and complete
-PT/EN/ES/FR interface localization. Valve photo upload and durable binary
-storage remain pending; only immutable photo metadata and migration support are
-present.
+invariant, centralized audit events, canonical report datasets, complete
+PT/EN/ES/FR localization, stable-ID photos, protected signatures, PDF export
+and the principal operational workflows. Remaining cutover items are tracked
+only in the maintained checklist.

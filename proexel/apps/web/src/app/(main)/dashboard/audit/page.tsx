@@ -1,7 +1,11 @@
-import { History } from "lucide-react";
+import Link from "next/link";
+
+import { History, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { INTL_LOCALES } from "@/lib/i18n/config";
 import type { TranslationKey } from "@/lib/i18n/messages";
@@ -14,8 +18,36 @@ import { ProexelEmptyState } from "../_components/proexel-empty-state";
 
 export const dynamic = "force-dynamic";
 
-export default async function AuditPage() {
-  const [, audit, { t, locale }] = await Promise.all([requirePermission("audit.read"), listAudit(), getI18n()]);
+export default async function AuditPage({
+  searchParams,
+}: {
+  readonly searchParams: Promise<{
+    q?: string;
+    operation?: string;
+    actor?: string;
+    aggregate?: string;
+    from?: string;
+    to?: string;
+    page?: string;
+  }>;
+}) {
+  const params = await searchParams;
+  const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1);
+  const [, audit, { t, locale }] = await Promise.all([
+    requirePermission("audit.read"),
+    listAudit({
+      search: params.q ?? "",
+      operation: params.operation ?? "",
+      actor: params.actor ?? "",
+      aggregate: params.aggregate ?? "",
+      from_ms: dateBoundary(params.from, false),
+      to_ms: dateBoundary(params.to, true),
+      page,
+      page_size: 50,
+    }),
+    getI18n(),
+  ]);
+  const pages = Math.max(1, Math.ceil(audit.total / audit.page_size));
   const descriptions: Record<string, TranslationKey> = {
     "Valve created": "audit.valveCreated",
     "Valve updated": "audit.valveUpdated",
@@ -29,6 +61,12 @@ export default async function AuditPage() {
     "Stock item created": "audit.stockItemCreated",
     "Supplier created": "audit.supplierCreated",
     "Supplier updated": "audit.supplierUpdated",
+    "Service order deleted": "audit.orderDeleted",
+    "Restock request deleted": "audit.restockDeleted",
+    "Stock item deleted": "audit.stockDeleted",
+    "Supplier deleted": "audit.supplierDeleted",
+    "Valve photo added": "audit.photoAdded",
+    "Valve photo removed": "audit.photoRemoved",
   };
   const operations: Record<string, TranslationKey> = {
     "proexel.valves.create": "audit.valveCreated",
@@ -42,22 +80,75 @@ export default async function AuditPage() {
     "proexel.stock.upsert_item": "audit.stockItemUpdated",
     "proexel.suppliers.create": "audit.supplierCreated",
     "proexel.suppliers.update": "audit.supplierUpdated",
+    "proexel.orders.delete": "audit.orderDeleted",
+    "proexel.purchasing.delete_restock_request": "audit.restockDeleted",
+    "proexel.stock.delete_item": "audit.stockDeleted",
+    "proexel.suppliers.delete": "audit.supplierDeleted",
+    "proexel.valves.add_photo": "audit.photoAdded",
+    "proexel.valves.delete_photo": "audit.photoRemoved",
   };
   const aggregates: Record<string, TranslationKey> = {
-    Valve: "nav.valves",
-    Maintenance: "nav.maintenance",
-    ServiceOrder: "nav.orders",
-    RestockRequest: "purchasing.requests",
-    StockItem: "stock.items",
-    Supplier: "nav.suppliers",
+    valve: "nav.valves",
+    valve_photo: "valves.photos",
+    maintenance: "nav.maintenance",
+    service_order: "nav.orders",
+    restock_request: "purchasing.requests",
+    stock_item: "stock.items",
+    supplier: "nav.suppliers",
   };
   return (
     <div>
       <PageHeader title={t("audit.title")} description={t("audit.description")} />
       <Card>
-        <CardHeader>
-          <CardTitle>{t("audit.recent")}</CardTitle>
-          <CardDescription>{t("audit.limit")}</CardDescription>
+        <CardHeader className="gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <CardTitle>{t("audit.recent")}</CardTitle>
+            <CardDescription>
+              {t("audit.results", { count: audit.items.length, total: audit.total })} · {t("audit.limit")}
+            </CardDescription>
+          </div>
+          <form className="grid w-full gap-2 sm:grid-cols-2 xl:grid-cols-[220px_180px_180px_160px_145px_145px_auto]">
+            <Input name="q" defaultValue={params.q} placeholder={t("audit.search")} />
+            <select
+              name="actor"
+              defaultValue={params.actor ?? ""}
+              className="h-8 rounded-lg border bg-background px-2 text-sm"
+            >
+              <option value="">{t("audit.allActors")}</option>
+              {audit.actors.map((actor) => (
+                <option key={actor}>{actor}</option>
+              ))}
+            </select>
+            <select
+              name="aggregate"
+              defaultValue={params.aggregate ?? ""}
+              className="h-8 rounded-lg border bg-background px-2 text-sm"
+            >
+              <option value="">{t("audit.allEntities")}</option>
+              {audit.aggregates.map((aggregate) => (
+                <option key={aggregate} value={aggregate}>
+                  {aggregates[aggregate] ? t(aggregates[aggregate]) : aggregate}
+                </option>
+              ))}
+            </select>
+            <select
+              name="operation"
+              defaultValue={params.operation ?? ""}
+              className="h-8 rounded-lg border bg-background px-2 text-sm"
+            >
+              <option value="">{t("audit.allOperations")}</option>
+              {audit.operations.map((operation) => (
+                <option key={operation} value={operation}>
+                  {operations[operation] ? t(operations[operation]) : operation}
+                </option>
+              ))}
+            </select>
+            <Input name="from" type="date" defaultValue={params.from} aria-label={t("audit.from")} />
+            <Input name="to" type="date" defaultValue={params.to} aria-label={t("audit.to")} />
+            <Button type="submit" size="icon" variant="outline" title={t("common.search")}>
+              <Search />
+            </Button>
+          </form>
         </CardHeader>
         <CardContent>
           {audit.items.length === 0 ? (
@@ -95,9 +186,20 @@ export default async function AuditPage() {
                         {aggregates[event.aggregate] ? t(aggregates[event.aggregate]) : event.aggregate}
                       </TableCell>
                       <TableCell>
-                        {event.description && descriptions[event.description]
-                          ? t(descriptions[event.description])
-                          : (event.description ?? "-")}
+                        <div>
+                          {event.description && descriptions[event.description]
+                            ? t(descriptions[event.description])
+                            : (event.description ?? "-")}
+                        </div>
+                        {event.before_json || event.after_json ? (
+                          <details className="mt-1 text-xs">
+                            <summary className="cursor-pointer text-muted-foreground">{t("audit.details")}</summary>
+                            <div className="mt-2 grid gap-2 lg:grid-cols-2">
+                              <AuditValue label={t("audit.before")} value={event.before_json} />
+                              <AuditValue label={t("audit.after")} value={event.after_json} />
+                            </div>
+                          </details>
+                        ) : null}
                       </TableCell>
                       <TableCell>
                         <Badge variant={event.result === "success" ? "outline" : "destructive"}>
@@ -110,8 +212,59 @@ export default async function AuditPage() {
               </Table>
             </div>
           )}
+          {audit.total > 0 ? (
+            <div className="mt-4 flex items-center justify-between border-t pt-4">
+              <span className="text-muted-foreground text-sm">{t("valves.page", { page: audit.page, pages })}</span>
+              <div className="flex gap-2">
+                <Button asChild={audit.page > 1} size="sm" variant="outline" disabled={audit.page <= 1}>
+                  {audit.page > 1 ? (
+                    <Link href={auditHref(params, audit.page - 1)}>{t("common.previous")}</Link>
+                  ) : (
+                    <span>{t("common.previous")}</span>
+                  )}
+                </Button>
+                <Button asChild={audit.page < pages} size="sm" variant="outline" disabled={audit.page >= pages}>
+                  {audit.page < pages ? (
+                    <Link href={auditHref(params, audit.page + 1)}>{t("common.next")}</Link>
+                  ) : (
+                    <span>{t("common.next")}</span>
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>
   );
+}
+
+function AuditValue({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <strong>{label}</strong>
+      <pre className="mt-1 max-h-48 max-w-80 overflow-auto rounded border bg-muted p-2">{value ?? "-"}</pre>
+    </div>
+  );
+}
+
+function dateBoundary(value: string | undefined, endOfDay: boolean) {
+  if (!value) return endOfDay ? Number.MAX_SAFE_INTEGER : 0;
+  const parsed = Date.parse(`${value}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
+  return Number.isFinite(parsed) ? parsed : endOfDay ? Number.MAX_SAFE_INTEGER : 0;
+}
+
+function auditHref(
+  params: { q?: string; operation?: string; actor?: string; aggregate?: string; from?: string; to?: string },
+  page: number,
+) {
+  const search = new URLSearchParams();
+  if (params.q) search.set("q", params.q);
+  if (params.operation) search.set("operation", params.operation);
+  if (params.actor) search.set("actor", params.actor);
+  if (params.aggregate) search.set("aggregate", params.aggregate);
+  if (params.from) search.set("from", params.from);
+  if (params.to) search.set("to", params.to);
+  search.set("page", String(page));
+  return `/dashboard/audit?${search.toString()}`;
 }

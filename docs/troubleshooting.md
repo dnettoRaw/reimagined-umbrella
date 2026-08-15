@@ -98,8 +98,16 @@ controlled startup sequence. The current local launcher follows this order.
 
 ### Port 3000 or 39400 is already in use
 
-Find and stop the existing stack or assign an intentional alternative port in a
-separate deployment. Do not run two Rust writers against one state file.
+Find and stop the existing stack or set `PROEXEL_WEB_PORT` and an alternate
+deployment manifest. The E2E runner intentionally uses 3010/39410 and isolated
+state/build directories. Do not run two Rust writers against one state file.
+
+### Photo or signature returns 404
+
+- Confirm `PROEXEL_ATTACHMENTS_DIR` is the same absolute path used at upload.
+- Confirm the Next.js account can read files and traverse directories.
+- Restore attachments from the same backup consistency point as canonical state.
+- Do not edit `blob_ref` values or expose the attachment directory publicly.
 
 ### Language changes only after navigation
 
@@ -123,6 +131,9 @@ the old language remains, check that cookies are enabled, the cookie path is
 Use `npm ci`, not an unreviewed lockfile rewrite. Run Biome, TypeScript and the
 production build separately to identify the failing gate. Keep Node/npm aligned
 with the environment that produced the committed lockfile.
+
+Run the isolated browser workflow from the repository root with
+`./proexel/scripts/e2e.sh`; it creates ephemeral credentials and storage.
 
 ## Escalation evidence
 

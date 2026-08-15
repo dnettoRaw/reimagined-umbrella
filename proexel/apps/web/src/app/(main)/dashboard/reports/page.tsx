@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/proexel/auth-server";
 import { getReports } from "@/lib/proexel/service";
 
 import { PageHeader } from "../_components/page-header";
+import { ReportExport } from "./report-export";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,11 @@ export default async function ReportsPage() {
   const byZone = report.by_zone.toSorted((a, b) => b.critical - a.critical);
   return (
     <div>
-      <PageHeader title={t("nav.reports")} description={t("reports.description")} />
+      <PageHeader
+        title={t("nav.reports")}
+        description={t("reports.description")}
+        action={<ReportExport report={report} />}
+      />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>

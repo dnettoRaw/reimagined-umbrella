@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   agentRules: false,
+  distDir: process.env.PROEXEL_NEXT_DIST_DIR || ".next",
   reactCompiler: true,
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",

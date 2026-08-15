@@ -54,6 +54,15 @@ pub enum ServiceOrderStatus {
     Completed,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ServiceOrderPriority {
+    Low,
+    Normal,
+    High,
+    Urgent,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceOrder {
     pub id: String,
@@ -61,7 +70,7 @@ pub struct ServiceOrder {
     pub valve_id: Option<String>,
     pub valve_tag_snapshot: Option<String>,
     pub description: String,
-    pub priority: String,
+    pub priority: ServiceOrderPriority,
     pub status: ServiceOrderStatus,
     pub created_by: String,
     pub technician: Option<String>,

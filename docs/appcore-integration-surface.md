@@ -65,15 +65,21 @@ Validated command capabilities:
 
 - `proexel.valves.create`
 - `proexel.valves.update`
+- `proexel.valves.add_photo`
+- `proexel.valves.delete_photo`
 - `proexel.maintenance.register`
 - `proexel.orders.create`
 - `proexel.orders.change_status`
+- `proexel.orders.delete`
 - `proexel.purchasing.create_restock_request`
 - `proexel.purchasing.review_restock_request`
+- `proexel.purchasing.delete_restock_request`
 - `proexel.stock.adjust`
 - `proexel.stock.upsert_item`
+- `proexel.stock.delete_item`
 - `proexel.suppliers.create`
 - `proexel.suppliers.update`
+- `proexel.suppliers.delete`
 
 Validated query capabilities:
 

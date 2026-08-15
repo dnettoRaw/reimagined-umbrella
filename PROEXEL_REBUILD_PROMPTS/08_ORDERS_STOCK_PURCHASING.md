@@ -1,4 +1,4 @@
-# Prompt 08 — OS, estoque, reposição e fornecedores
+# Prompt 08 — OS, estoque, reposição e fornecedores — CONCLUÍDO 100%
 
 Implemente os módulos operacionais restantes sem reutilizar hooks Supabase antigos.
 

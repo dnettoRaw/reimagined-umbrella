@@ -17,6 +17,14 @@ export interface Valve {
   last_kit_changed_at?: string | null;
   last_maintenance_at?: string | null;
   health: MaintenanceHealth;
+  photos: ValvePhoto[];
+}
+
+export interface ValvePhoto {
+  id: string;
+  valve_id: string;
+  legacy_tag?: string | null;
+  blob_ref: string;
 }
 
 export interface MaintenanceRecord {
@@ -28,6 +36,7 @@ export interface MaintenanceRecord {
   maintenance_type: "preventive" | "corrective";
   service: string;
   notes?: string | null;
+  signature_ref?: string | null;
   kit_changed: boolean;
   stock_consumed: boolean;
   stock_consumption_pending: boolean;
@@ -39,7 +48,7 @@ export interface ServiceOrder {
   valve_id?: string | null;
   valve_tag_snapshot?: string | null;
   description: string;
-  priority: string;
+  priority: "low" | "normal" | "high" | "urgent";
   status: "pending" | "in_progress" | "completed";
   created_by: string;
   technician?: string | null;
@@ -82,6 +91,9 @@ export interface AuditEvent {
   aggregate: string;
   aggregate_id: string;
   description?: string | null;
+  trace_id?: string | null;
+  before_json?: string | null;
+  after_json?: string | null;
   result: string;
   created_at_ms: number;
 }
@@ -92,7 +104,21 @@ export interface ListResult<T> {
   source: "appcore" | "unavailable";
 }
 
-export type ValveListResult = ListResult<Valve>;
+export interface AuditListResult extends ListResult<AuditEvent> {
+  total: number;
+  page: number;
+  page_size: number;
+  operations: string[];
+  actors: string[];
+  aggregates: string[];
+}
+
+export interface ValveListResult extends ListResult<Valve> {
+  total: number;
+  page: number;
+  page_size: number;
+  facets: { zones: string[]; valve_types: string[] };
+}
 
 export interface OverviewResult {
   schema_version: number;

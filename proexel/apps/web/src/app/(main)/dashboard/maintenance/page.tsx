@@ -1,4 +1,4 @@
-import { Plus, Wrench } from "lucide-react";
+import { ExternalLink, Wrench } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,19 +8,20 @@ import { INTL_LOCALES } from "@/lib/i18n/config";
 import { getI18n } from "@/lib/i18n/server";
 import { requirePermission } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
-import { listMaintenance, listValves } from "@/lib/proexel/service";
+import { listMaintenance, listStock, listValves } from "@/lib/proexel/service";
 
-import { CommandDialog } from "../_components/command-dialog";
 import { PageHeader } from "../_components/page-header";
 import { ProexelEmptyState } from "../_components/proexel-empty-state";
+import { MaintenanceWizard } from "./maintenance-wizard";
 
 export const dynamic = "force-dynamic";
 
 export default async function MaintenancePage() {
-  const [{ role }, maintenance, valves, { t, locale }] = await Promise.all([
+  const [session, maintenance, valves, stock, { t, locale }] = await Promise.all([
     requirePermission("maintenance.read"),
     listMaintenance(),
-    listValves(),
+    listValves({ page_size: 500 }),
+    listStock(),
     getI18n(),
   ]);
   return (
@@ -29,49 +30,8 @@ export default async function MaintenancePage() {
         title={t("nav.maintenance")}
         description={t("maintenance.description")}
         action={
-          can("maintenance.register", role) ? (
-            <CommandDialog
-              trigger={
-                <Button disabled={valves.items.length === 0}>
-                  <Plus />
-                  {t("maintenance.register")}
-                </Button>
-              }
-              title={t("maintenance.register")}
-              description={t("maintenance.registerDescription")}
-              endpoint="/api/proexel/maintenance"
-              fields={[
-                {
-                  name: "valve_id",
-                  label: t("maintenance.valve"),
-                  type: "select",
-                  required: true,
-                  options: valves.items.map((valve) => ({ label: `${valve.tag} · ${valve.zone}`, value: valve.id })),
-                },
-                {
-                  name: "performed_at",
-                  label: t("common.date"),
-                  type: "date",
-                  required: true,
-                  defaultValue: new Date().toISOString().slice(0, 10),
-                },
-                { name: "technician", label: t("common.technician"), required: true },
-                {
-                  name: "maintenance_type",
-                  label: t("common.type"),
-                  type: "select",
-                  required: true,
-                  options: [
-                    { label: t("maintenance.preventive"), value: "preventive" },
-                    { label: t("maintenance.corrective"), value: "corrective" },
-                  ],
-                },
-                { name: "service", label: t("maintenance.service"), type: "textarea", required: true },
-                { name: "notes", label: t("common.notes"), type: "textarea" },
-                { name: "signature_ref", label: t("maintenance.signature") },
-                { name: "kit_changed", label: t("maintenance.kitChanged"), type: "checkbox" },
-              ]}
-            />
+          can("maintenance.register", session.role) ? (
+            <MaintenanceWizard valves={valves.items} stock={stock.items} technician={session.name} />
           ) : null
         }
       />
@@ -98,6 +58,7 @@ export default async function MaintenancePage() {
                     <TableHead>{t("common.type")}</TableHead>
                     <TableHead>{t("maintenance.service")}</TableHead>
                     <TableHead>{t("valves.kit")}</TableHead>
+                    <TableHead>{t("maintenance.stepSignature")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -106,6 +67,22 @@ export default async function MaintenancePage() {
                       <TableCell>
                         {new Intl.DateTimeFormat(INTL_LOCALES[locale]).format(
                           new Date(`${item.performed_at}T00:00:00`),
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.signature_ref ? (
+                          <Button asChild size="icon-sm" variant="ghost" title={t("maintenance.viewSignature")}>
+                            <a
+                              href={`/api/proexel/attachments?ref=${encodeURIComponent(item.signature_ref)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <ExternalLink />
+                              <span className="sr-only">{t("maintenance.viewSignature")}</span>
+                            </a>
+                          </Button>
+                        ) : (
+                          "-"
                         )}
                       </TableCell>
                       <TableCell className="font-medium">{item.valve_tag_snapshot}</TableCell>

@@ -1,4 +1,4 @@
-import { CalendarClock, Plus } from "lucide-react";
+import { CalendarClock, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,7 @@ export default async function OrdersPage() {
   const [{ role }, orders, valves, { t, locale }] = await Promise.all([
     requirePermission("order.read"),
     listServiceOrders(),
-    listValves(),
+    listValves({ page_size: 500 }),
     getI18n(),
   ]);
   return (
@@ -148,6 +148,18 @@ export default async function OrdersPage() {
                               {t("orders.finish")}
                             </CommandButton>
                           ) : null}
+                          {can("order.delete", role) && order.status !== "completed" ? (
+                            <CommandButton
+                              endpoint="/api/proexel/orders"
+                              data={{ id: order.id }}
+                              method="DELETE"
+                              variant="destructive"
+                              confirmMessage={t("orders.deleteConfirm")}
+                            >
+                              <Trash2 />
+                              <span className="sr-only">{t("common.delete")}</span>
+                            </CommandButton>
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -156,6 +168,45 @@ export default async function OrdersPage() {
               </Table>
             </div>
           )}
+        </CardContent>
+      </Card>
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>{t("orders.scheduleView")}</CardTitle>
+          <CardDescription>{t("orders.scheduledDate")}</CardDescription>
+        </CardHeader>
+        <CardContent className="divide-y">
+          {orders.items
+            .filter((order) => order.status !== "completed")
+            .toSorted((left, right) => (left.scheduled_for ?? "9999").localeCompare(right.scheduled_for ?? "9999"))
+            .map((order) => {
+              const critical = valves.items.filter(
+                (valve) => valve.zone === order.zone && valve.health === "critical",
+              ).length;
+              return (
+                <div key={order.id} className="grid gap-2 py-3 sm:grid-cols-[140px_1fr_auto] sm:items-center">
+                  <span>
+                    {order.scheduled_for
+                      ? new Intl.DateTimeFormat(INTL_LOCALES[locale]).format(
+                          new Date(`${order.scheduled_for}T00:00:00`),
+                        )
+                      : t("orders.unscheduled")}
+                  </span>
+                  <div>
+                    <strong>{order.zone}</strong>
+                    <p className="text-muted-foreground text-sm">{order.description}</p>
+                  </div>
+                  <Badge variant={critical ? "destructive" : "outline"}>
+                    {critical
+                      ? t("reports.criticalCount", {
+                          critical,
+                          total: valves.items.filter((valve) => valve.zone === order.zone).length,
+                        })
+                      : t("overview.onTrack")}
+                  </Badge>
+                </div>
+              );
+            })}
         </CardContent>
       </Card>
     </div>

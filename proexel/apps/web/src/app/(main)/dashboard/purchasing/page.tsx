@@ -1,4 +1,4 @@
-import { Check, Plus, ShoppingCart, X } from "lucide-react";
+import { Check, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,17 +7,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getI18n } from "@/lib/i18n/server";
 import { requireSession } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
-import { listRestockRequests } from "@/lib/proexel/service";
+import { listRestockRequests, listStock } from "@/lib/proexel/service";
 
 import { CommandButton } from "../_components/command-button";
 import { CommandDialog } from "../_components/command-dialog";
 import { PageHeader } from "../_components/page-header";
 import { ProexelEmptyState } from "../_components/proexel-empty-state";
+import { PurchasePlan } from "./purchase-plan";
 
 export const dynamic = "force-dynamic";
 
 export default async function PurchasingPage() {
-  const [{ role }, requests, { t }] = await Promise.all([requireSession(), listRestockRequests(), getI18n()]);
+  const [{ role }, requests, stock, { t }] = await Promise.all([
+    requireSession(),
+    listRestockRequests(),
+    listStock(),
+    getI18n(),
+  ]);
   return (
     <div>
       <PageHeader
@@ -110,6 +116,18 @@ export default async function PurchasingPage() {
                               </CommandButton>
                             </>
                           ) : null}
+                          {can("restock.delete", role) && item.status !== "approved" ? (
+                            <CommandButton
+                              endpoint="/api/proexel/purchasing"
+                              data={{ id: item.id }}
+                              method="DELETE"
+                              variant="destructive"
+                              confirmMessage={t("purchasing.deleteConfirm")}
+                            >
+                              <Trash2 />
+                              <span className="sr-only">{t("common.delete")}</span>
+                            </CommandButton>
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -120,6 +138,7 @@ export default async function PurchasingPage() {
           )}
         </CardContent>
       </Card>
+      {can("stock.read", role) ? <PurchasePlan stock={stock.items} requests={requests.items} /> : null}
     </div>
   );
 }

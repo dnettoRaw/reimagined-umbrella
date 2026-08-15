@@ -94,6 +94,7 @@ fn persist_state(path: &Path, state: &ApplicationState) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::thread;
 
     #[test]
     fn transaction_is_durable_and_failed_write_is_not_committed() {
@@ -119,6 +120,47 @@ mod tests {
         });
         assert_eq!(result, Err("stop".to_string()));
         assert_eq!(store.read().unwrap().schema_version, 7);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn cloned_store_serializes_concurrent_transactions_without_lost_updates() {
+        let path = std::env::temp_dir().join(format!(
+            "proexel-store-concurrent-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let store = JsonFileStore::new(&path).unwrap();
+        let handles = (0..8)
+            .map(|_| {
+                let store = store.clone();
+                thread::spawn(move || {
+                    for _ in 0..25 {
+                        store
+                            .transact(|state| {
+                                state.schema_version += 1;
+                                Ok(())
+                            })
+                            .unwrap();
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        assert_eq!(store.read().unwrap().schema_version, 201);
+        assert_eq!(
+            JsonFileStore::new(&path)
+                .unwrap()
+                .read()
+                .unwrap()
+                .schema_version,
+            201
+        );
         let _ = fs::remove_file(path);
     }
 }

@@ -10,7 +10,9 @@ export function can(permission: string, role: Role): boolean {
     case "valve.create":
     case "order.create":
     case "order.change_status":
+    case "order.delete":
     case "restock.approve_reject":
+    case "restock.delete":
     case "report.read":
     case "audit.read":
       return role === "admin" || role === "chefe";
@@ -26,6 +28,7 @@ export function can(permission: string, role: Role): boolean {
     case "stock.read":
     case "stock.add_or_increment":
     case "stock.adjust_quantity":
+    case "stock.delete":
       return role === "admin" || role === "chefe" || role === "compras";
     default:
       return false;

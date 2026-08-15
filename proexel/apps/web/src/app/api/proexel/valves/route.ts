@@ -11,3 +11,7 @@ export async function GET() {
 export async function POST(request: Request) {
   return commandResponse("proexel.valves.create", request);
 }
+
+export async function PATCH(request: Request) {
+  return commandResponse("proexel.valves.update", request);
+}

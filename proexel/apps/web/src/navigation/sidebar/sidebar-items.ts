@@ -1,6 +1,7 @@
 import {
   Activity,
   BarChart3,
+  Bell,
   Building2,
   Calendar,
   History,
@@ -69,6 +70,11 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/orders",
         icon: Calendar,
         roles: ["admin", "chefe", "tecnico"],
+      },
+      {
+        title: "nav.notifications",
+        url: "/dashboard/notifications",
+        icon: Bell,
       },
     ],
   },

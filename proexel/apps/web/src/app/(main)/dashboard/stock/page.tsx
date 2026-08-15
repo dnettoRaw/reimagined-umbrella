@@ -1,4 +1,4 @@
-import { PackageSearch, Plus } from "lucide-react";
+import { PackageSearch, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { requirePermission } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
 import { listStock } from "@/lib/proexel/service";
 
+import { CommandButton } from "../_components/command-button";
 import { CommandDialog } from "../_components/command-dialog";
 import { PageHeader } from "../_components/page-header";
 import { ProexelEmptyState } from "../_components/proexel-empty-state";
@@ -94,24 +95,38 @@ export default async function StockPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {can("stock.adjust_quantity", role) ? (
-                          <CommandDialog
-                            trigger={
-                              <Button size="sm" variant="outline">
-                                {t("common.adjust")}
-                              </Button>
-                            }
-                            title={t("stock.adjustTitle", { reference: item.reference })}
-                            description={t("stock.adjustDescription", { quantity: item.quantity })}
-                            endpoint="/api/proexel/stock"
-                            method="PATCH"
-                            fields={[
-                              { name: "id", label: "ID", type: "hidden", defaultValue: item.id, required: true },
-                              { name: "delta", label: t("stock.variation"), type: "number", required: true },
-                              { name: "reason", label: t("stock.reason"), type: "textarea", required: true },
-                            ]}
-                          />
-                        ) : null}
+                        <div className="flex justify-end gap-2">
+                          {can("stock.adjust_quantity", role) ? (
+                            <CommandDialog
+                              trigger={
+                                <Button size="sm" variant="outline">
+                                  {t("common.adjust")}
+                                </Button>
+                              }
+                              title={t("stock.adjustTitle", { reference: item.reference })}
+                              description={t("stock.adjustDescription", { quantity: item.quantity })}
+                              endpoint="/api/proexel/stock"
+                              method="PATCH"
+                              fields={[
+                                { name: "id", label: "ID", type: "hidden", defaultValue: item.id, required: true },
+                                { name: "delta", label: t("stock.variation"), type: "number", required: true },
+                                { name: "reason", label: t("stock.reason"), type: "textarea", required: true },
+                              ]}
+                            />
+                          ) : null}
+                          {can("stock.delete", role) && item.quantity === 0 ? (
+                            <CommandButton
+                              endpoint="/api/proexel/stock"
+                              data={{ id: item.id }}
+                              method="DELETE"
+                              variant="destructive"
+                              confirmMessage={t("stock.deleteConfirm")}
+                            >
+                              <Trash2 />
+                              <span className="sr-only">{t("common.delete")}</span>
+                            </CommandButton>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -33,6 +33,14 @@ Execute os prompts em ordem. O `00_MASTER_PROMPT.md` pode ser usado sozinho para
 
 **Não fazer um refactor do PROEXEL antigo. Fazer um produto novo.** O legado é uma referência comportamental. Não carregar Vite, hooks Supabase, estado global no `App.jsx`, CSS/SCSS antigo, componentes antigos ou fallback de localStorage como arquitetura final.
 
+## Estado de execução
+
+Os prompts 01, 02, 03, 04, 05, 08 e 09 estão marcados no próprio título como
+`CONCLUÍDO 100%`. Os prompts 00, 06, 07, 10 e 11 permanecem sem essa marca porque
+possuem requisitos literais ainda abertos ou evidência externa de produção ainda
+indisponível. O detalhamento verificável fica em
+`docs/implementation-status.md` e `docs/functional-parity-checklist.md`.
+
 ## Regras de negócio já identificadas no legado
 
 - Entidade de válvula com: TAG, zona, fabricante/marca, série, kit, assento, DN, tipo, atuador, fabricação, última troca de kit e última manutenção.

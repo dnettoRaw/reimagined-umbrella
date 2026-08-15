@@ -1,4 +1,4 @@
-# Prompt 09 — Relatórios, i18n e operação offline
+# Prompt 09 — Relatórios, i18n e operação offline — CONCLUÍDO 100%
 
 Finalize as capacidades transversais visíveis ao usuário.
 

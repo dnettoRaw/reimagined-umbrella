@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added stable-ID valve photo upload/removal and protected graphical maintenance signatures.
+- Added valve detail/edit/timeline, production filters, facets, sorting and pagination.
+- Added audited delete policies, canonical order priorities, schedule criticality,
+  supplier validation and grouped purchase output.
+- Added paginated localized PDF export and deduplicated operational notifications.
+- Added backend audit filters/pagination/detail and runtime-derived standalone/degraded UX.
+- Added committed Playwright E2E, concurrent storage and production-volume tests.
 - Added complete UI localization for Portuguese, English, Spanish, and French,
   including authentication, navigation, forms, dialogs, empty/error states, and
   server-facing error presentation.
@@ -28,7 +35,6 @@
   identity.
 - Removed dashboard template demo routes and legacy runtime dependencies.
 
-Known release blockers for production remain: managed identity provisioning,
-validated photo upload/storage, configured sync/outbox, graphical signature
-capture, paginated PDF export, complete legacy workflow parity, and committed
-end-to-end/performance gates.
+Known release blockers are external production identity/cutover evidence, real
+legacy-export reconciliation, source attachment transfer, target failure drills,
+and distributed sync/rate limiting only if that deployment topology is selected.

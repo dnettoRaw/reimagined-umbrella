@@ -1,4 +1,4 @@
-import { CircleCheck, CircleX, Server } from "lucide-react";
+import { CircleCheck, CircleX, Database, RefreshCwOff, Server } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +40,31 @@ export default async function SettingsPage() {
               <span className="text-muted-foreground text-sm">{t("settings.endpoint")}</span>
               <code className="truncate text-xs">{runtime.url ?? "-"}</code>
             </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Database className="size-5" />
+              <CardTitle>{t("settings.operationalMode")}</CardTitle>
+            </div>
+            <CardDescription>{t("settings.operationalDescription")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground text-sm">{t("settings.localOperation")}</span>
+              <Badge variant={runtime.healthy ? "outline" : "destructive"}>
+                {runtime.healthy ? t("settings.readWrite") : t("settings.degraded")}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground text-sm">{t("settings.remoteSync")}</span>
+              <Badge variant="secondary" className="gap-1">
+                <RefreshCwOff />
+                {t("settings.syncDisabled")}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground text-xs">{t("settings.syncDescription")}</p>
           </CardContent>
         </Card>
         <Card>

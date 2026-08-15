@@ -58,8 +58,9 @@ stock export already represents its current balance.
 - The audit view contains the migration batch event and source checksum.
 - Users and credentials are provisioned separately; they are never imported by
   this CLI.
-- Photo binaries are retained in the source archive until a supported upload
-  provider and attachment migration are implemented.
+- Photo binaries are retained in the source archive until cutover. The target
+  protected attachment adapter exists, but transfer still requires the real
+  source archive and a mapping from legacy storage references to exported files.
 
 ## Rollback
 

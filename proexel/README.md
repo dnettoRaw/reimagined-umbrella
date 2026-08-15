@@ -48,6 +48,16 @@ npm run build
 npm audit --audit-level=high
 ```
 
+Run the isolated, ephemeral browser workflow from the repository root:
+
+```bash
+./proexel/scripts/e2e.sh
+```
+
+Photo and signature bytes default to
+`proexel/apps/service/target/runtime/attachments`; set
+`PROEXEL_ATTACHMENTS_DIR` to an absolute private path in deployed environments.
+
 ## Local AppCore smoke test
 
 Generate the local runtime secret before starting the service. AppCore writes
@@ -77,7 +87,7 @@ TOKEN=$(cargo run --quiet --manifest-path core/AppCore-Runtime/Cargo.toml -p app
 
 curl -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query_name":"proexel.valves.list","query_id":"qry-local-smoke","payload":{}}' \
+  -d '{"query_name":"proexel.valves.list","query_id":"qry-local-smoke","payload":{"actor":{"id":"smoke-admin","name":"Smoke Admin","role":"admin"},"data":{}}}' \
   http://127.0.0.1:39400/v1/query
 ```
 

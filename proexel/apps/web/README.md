@@ -35,6 +35,8 @@ npm run dev
 - Render overview, valves, maintenance, orders, purchasing, stock, suppliers,
   reports, audit, administration, and settings flows.
 - Render all application-owned text in Portuguese, English, Spanish, or French.
+- Validate and serve authenticated valve photos and maintenance signatures from
+  the protected attachment adapter.
 
 Translations live under `src/lib/i18n`. New visible text must be added to all
 four locale dictionaries in the same change; Portuguese is the fallback locale.
@@ -48,6 +50,10 @@ npx tsc --noEmit
 npm run build
 npm audit --audit-level=high
 ```
+
+The committed browser workflow is run from the repository root with
+`./proexel/scripts/e2e.sh`. It uses isolated ports, state, attachments, build
+output and ephemeral credentials.
 
 The application requires a running service for meaningful page and command
 tests. The full local topology is documented in

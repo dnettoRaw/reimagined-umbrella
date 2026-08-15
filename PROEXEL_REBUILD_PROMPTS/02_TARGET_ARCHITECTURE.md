@@ -1,4 +1,4 @@
-# Prompt 02 — Arquitetura-alvo PROEXEL + AppCore
+# Prompt 02 — Arquitetura-alvo PROEXEL + AppCore — CONCLUÍDO 100%
 
 Com base no discovery, desenhe e aplique a arquitetura-alvo do novo PROEXEL.
 

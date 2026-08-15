@@ -14,3 +14,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   return commandResponse("proexel.purchasing.review_restock_request", request);
 }
+
+export async function DELETE(request: Request) {
+  return commandResponse("proexel.purchasing.delete_restock_request", request);
+}

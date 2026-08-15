@@ -1,4 +1,4 @@
-# Prompt 04 — Domínio, banco e local-first
+# Prompt 04 — Domínio, banco e local-first — CONCLUÍDO 100%
 
 Implemente a camada de domínio e persistência do PROEXEL novo.
 

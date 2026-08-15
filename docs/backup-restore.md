@@ -1,8 +1,8 @@
 # PROEXEL backup and restore
 
-The current standalone deployment stores all canonical PROEXEL state in one
-schema-versioned JSON file. Use cold backups: stop the Rust writer before
-copying or replacing that file.
+The standalone deployment stores canonical metadata in one schema-versioned
+JSON file and photo/signature bytes in the attachment directory. Use cold
+backups: stop Rust and Next.js before copying either consistency set.
 
 ## Paths
 
@@ -21,6 +21,11 @@ The state file contains operational and audit data. Treat backups as sensitive:
 restrict access, encrypt external copies and define retention according to the
 installation's policy.
 
+The attachment root defaults to
+`proexel/apps/service/target/runtime/attachments` and is overridden by
+`PROEXEL_ATTACHMENTS_DIR`. Back up the complete directory with the state file;
+metadata without its referenced binary is incomplete.
+
 ## Create a consistent backup
 
 1. Announce a write interruption and stop the Next.js process or remove it from
@@ -28,7 +33,7 @@ installation's policy.
 2. Stop `proexel-service` and confirm no process has the state file open for
    writing.
 3. Create a dated backup directory on a filesystem with enough free space.
-4. Copy the canonical JSON file while preserving metadata.
+4. Copy the canonical JSON file and attachment directory while preserving metadata.
 5. Record a SHA-256 checksum and the deployed application/runtime revisions.
 6. Validate that the copied file is valid JSON with `schema_version` equal to
    the expected release schema.
@@ -41,6 +46,7 @@ BACKUP_DIR="/var/backups/proexel/$(date -u +%Y%m%dT%H%M%SZ)"
 STATE="proexel/apps/service/target/runtime/storage/proexel-state-v1.json"
 mkdir -p "$BACKUP_DIR"
 cp -p "$STATE" "$BACKUP_DIR/proexel-state-v1.json"
+cp -Rp proexel/apps/service/target/runtime/attachments "$BACKUP_DIR/attachments"
 shasum -a 256 "$BACKUP_DIR/proexel-state-v1.json" > "$BACKUP_DIR/SHA256SUMS"
 jq -e '.schema_version == 1' "$BACKUP_DIR/proexel-state-v1.json"
 ```
@@ -58,10 +64,11 @@ and audit events. Never merge files manually.
 3. Verify the selected backup checksum.
 4. Validate JSON and confirm its `schema_version` is supported by the deployed
    binary.
-5. Copy the backup to a temporary file in the same directory as the canonical
-   state.
+5. Restore attachments to a temporary sibling directory and copy the state to a
+   temporary file in the canonical directory.
 6. Set the expected owner and restrictive file mode.
-7. Rename the temporary file over the canonical path atomically.
+7. Rename the temporary attachment directory and state file into place before
+   either process starts.
 8. Start only `proexel-service`; verify `/v1/health` and representative queries.
 9. Start Next.js, sign in and compare overview/entity counts with the backup
    record before reopening traffic.
@@ -92,9 +99,8 @@ mv "${STATE}.restore" "$STATE"
 - A newer schema must not be loaded into an older binary.
 - `processed_commands` must be retained; removing it can make old retries apply
   a business action twice.
-- Restoring operational state does not restore external files referenced by
-  future attachment providers. When attachment storage is enabled, its blobs
-  and metadata must share one backup consistency point.
+- State and attachments must share one consistency point. Orphaned files are
+  harmless but missing referenced files break photo/signature viewing.
 - User configuration lives in `PROEXEL_AUTH_USERS`, not the state file. Back up
   deployment secrets through the platform secret-management procedure, never
   in the same broadly accessible archive.

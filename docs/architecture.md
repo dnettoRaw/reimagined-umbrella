@@ -59,10 +59,10 @@ query token. The Rust service reads one state snapshot and produces DTO-shaped
 JSON. Maintenance health and report criticality are calculated on the service
 side from the domain policy; the UI only presents the contracted result.
 
-Queries currently include overview, valves, maintenance, service orders,
-restock requests, stock, suppliers, audit and reports. Audit responses are
-limited to the 250 most recent events. Valve search currently matches normalized
-TAG and zone.
+Queries include overview, valves, maintenance, service orders, restock requests,
+stock, suppliers, audit and reports. Valve and audit queries filter and paginate
+in the Rust service; audit supports actor, operation, entity, date and free-text
+criteria. Valve detail includes stable-ID photo metadata and its timeline.
 
 ## Persistence and transactions
 
@@ -104,6 +104,14 @@ by server and client components, the selected locale is persisted in the
 `proexel_locale` cookie, and dates/numbers use locale-specific `Intl` formats.
 User-entered operational data is not machine-translated.
 
+## Attachments and reports
+
+Photo and signature bytes live outside canonical JSON in a protected local file
+adapter selected by `PROEXEL_ATTACHMENTS_DIR`. Next.js validates authentication,
+RBAC, media type, magic bytes, size and safe generated paths; canonical metadata
+stores immutable valve IDs and opaque references. PDF reports use backend report
+datasets and paginate every row without recalculating health rules.
+
 ## Runtime and sync status
 
 The checked-in deployment is `standalone`, local read/write and file-backed.
@@ -113,14 +121,12 @@ that remote synchronization succeeded.
 
 ## Current limitations
 
-The architecture deliberately documents these as open product work:
-
-- valve attachment upload/validation and thumbnail serving;
-- graphical signature capture and protected signature viewing;
-- paginated PDF export;
-- configured sync/outbox and conflict UX;
-- production identity provisioning and durable/shared rate limiting;
-- richer list filtering, pagination and detail/edit workflows.
+- No remote sync/outbox is configured for the supported standalone deployment.
+- Production identity provisioning remains deployment-owned.
+- Shared rate limiting is required only if the web tier is horizontally scaled.
+- The local attachment adapter does not generate thumbnails or validate decoded
+  image dimensions.
+- The JSON adapter remains single writer and is not a distributed database.
 
 See [functional-parity-checklist.md](functional-parity-checklist.md) for the
 feature-level status.

@@ -35,7 +35,7 @@ should also pass for the locked dependencies.
 
 ## Runtime account and directories
 
-Use an unprivileged service account. Create storage, backup and secret
+Use an unprivileged service account. Create storage, attachment, backup and secret
 directories owned by that account. Recommended modes are `0700` for directories
 and `0600` for the runtime secret, state file and environment file.
 
@@ -55,7 +55,8 @@ environment values and deployment manifests.
    secret store.
 6. Set `PROEXEL_DATA_FILE` to an absolute state path when not using the local
    manifest layout.
-7. Start the Rust service and wait for health before starting Next.js.
+7. Set `PROEXEL_ATTACHMENTS_DIR` to an absolute private path owned by Next.js.
+8. Start the Rust service and wait for health before starting Next.js.
 
 The development launcher automates these steps with three-hour tokens and an
 ephemeral administrator. Do not use `scripts/dev-stack.sh` as the production
@@ -79,6 +80,7 @@ PROEXEL_SERVICE_URL=http://127.0.0.1:39400
 PROEXEL_SERVICE_TOKENS=<server-only JSON map>
 PROEXEL_SESSION_SECRET=<server-only random secret>
 PROEXEL_AUTH_USERS=<server-only JSON array>
+PROEXEL_ATTACHMENTS_DIR=/var/lib/proexel/attachments
 ```
 
 See [configuration.md](configuration.md) for the complete contract.
@@ -103,7 +105,8 @@ query succeed. A rendered login page alone is insufficient.
 - Preserve `HttpOnly`, `Secure` and `SameSite` cookie attributes. The application
   sets `Secure` automatically when `NODE_ENV=production`.
 - Apply request/body limits appropriate for JSON operations.
-- Add attachment-specific limits before photo upload is enabled.
+- Keep the application attachment limits in place and add a proxy body limit
+  slightly above 5 MB.
 
 ## Upgrade
 
@@ -128,4 +131,5 @@ unsupported newer state schema.
 Before declaring this baseline production-ready, resolve the open items in
 [functional-parity-checklist.md](functional-parity-checklist.md), especially
 managed identity provisioning, durable distributed rate limiting if scaling the
-web tier, attachment security, PDF export and explicit sync requirements.
+web tier, cutover evidence and explicit sync requirements for any future
+distributed topology.

@@ -14,21 +14,26 @@ export function CommandButton({
   data,
   children,
   variant = "outline",
+  method = "PATCH",
+  confirmMessage,
 }: {
   readonly endpoint: string;
   readonly data: Record<string, unknown>;
   readonly children: React.ReactNode;
   readonly variant?: "default" | "outline" | "destructive" | "secondary" | "ghost";
+  readonly method?: "PATCH" | "DELETE";
+  readonly confirmMessage?: string;
 }) {
   const router = useRouter();
   const { t } = useI18n();
   const [pending, setPending] = useState(false);
 
   async function run() {
+    if (confirmMessage && !window.confirm(confirmMessage)) return;
     setPending(true);
     try {
       const response = await fetch(endpoint, {
-        method: "PATCH",
+        method,
         headers: { "content-type": "application/json" },
         body: JSON.stringify(data),
       });

@@ -1,4 +1,4 @@
-# Prompt 05 — Auth, RBAC e auditoria
+# Prompt 05 — Auth, RBAC e auditoria — CONCLUÍDO 100%
 
 Substitua o login/RBAC legado por uma implementação compatível com a arquitetura nova e com AppCore.
 

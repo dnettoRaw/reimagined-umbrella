@@ -1,4 +1,4 @@
-# Prompt 01 — Discovery e mapa de comportamento
+# Prompt 01 — Discovery e mapa de comportamento — CONCLUÍDO 100%
 
 Antes de escrever a nova aplicação, faça uma auditoria completa do PROEXEL legado e da superfície pública relevante do AppCore.
 

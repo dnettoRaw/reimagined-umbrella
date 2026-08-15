@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use proexel_domain::{
     adjust_stock, can_transition_order, normalize_reference, normalize_tag, AuditEvent,
     MaintenanceRecord, MaintenanceType, RestockRequest, RestockStatus, ServiceOrder,
-    ServiceOrderStatus, StockItem, StockMovement, StockMovementKind, Supplier, Valve, ValvePhoto,
+    ServiceOrderPriority, ServiceOrderStatus, StockItem, StockMovement, StockMovementKind,
+    Supplier, Valve, ValvePhoto,
 };
 use serde::{Deserialize, Serialize};
 
@@ -327,6 +328,9 @@ impl ApplicationState {
         require_text(&input.performed_at, "performed_at_required")?;
         require_text(&input.technician, "technician_required")?;
         require_text(&input.service, "service_required")?;
+        let signature_ref = clean_optional(input.signature_ref)
+            .filter(|value| value.starts_with("signatures/"))
+            .ok_or_else(|| "signature_required".to_string())?;
         let valve_index = self
             .valves
             .iter()
@@ -384,7 +388,7 @@ impl ApplicationState {
             maintenance_type: input.maintenance_type,
             service: input.service,
             notes: clean_optional(input.notes),
-            signature_ref: clean_optional(input.signature_ref),
+            signature_ref: Some(signature_ref),
             kit_changed: input.kit_changed,
             kit_reference_snapshot: kit_reference,
             stock_consumed,
@@ -719,6 +723,7 @@ impl ApplicationState {
         let input: SupplierInput = parse_data(payload)?;
         require_text(&input.name, "supplier_name_required")?;
         require_text(&input.contact, "supplier_contact_required")?;
+        validate_supplier_links(input.email.as_deref(), input.website.as_deref())?;
         let id = format!("supplier-{command_id}");
         let supplier = Supplier {
             id: id.clone(),
@@ -748,6 +753,7 @@ impl ApplicationState {
         let input: UpdateSupplier = parse_data(payload)?;
         require_text(&input.name, "supplier_name_required")?;
         require_text(&input.contact, "supplier_contact_required")?;
+        validate_supplier_links(input.email.as_deref(), input.website.as_deref())?;
         let supplier = self
             .suppliers
             .iter_mut()
@@ -894,6 +900,24 @@ fn json_string<T: Serialize>(value: &T) -> Option<String> {
 fn parse_data<T: for<'de> Deserialize<'de>>(payload: &CommandPayload) -> Result<T, String> {
     serde_json::from_value(payload.data.clone()).map_err(|_| "invalid_command_data".to_string())
 }
+fn validate_supplier_links(email: Option<&str>, website: Option<&str>) -> Result<(), String> {
+    if let Some(email) = email.map(str::trim).filter(|value| !value.is_empty()) {
+        let (local, domain) = email
+            .split_once('@')
+            .ok_or_else(|| "supplier_email_invalid".to_string())?;
+        if local.is_empty() || !domain.contains('.') || email.contains(char::is_whitespace) {
+            return Err("supplier_email_invalid".to_string());
+        }
+    }
+    if let Some(website) = website.map(str::trim).filter(|value| !value.is_empty()) {
+        if website.contains(char::is_whitespace)
+            || !(website.starts_with("https://") || website.starts_with("http://"))
+        {
+            return Err("supplier_website_invalid".to_string());
+        }
+    }
+    Ok(())
+}
 
 #[derive(Deserialize)]
 struct CreateValve {
@@ -950,7 +974,7 @@ struct CreateServiceOrder {
     zone: String,
     valve_id: Option<String>,
     description: String,
-    priority: String,
+    priority: ServiceOrderPriority,
     technician: Option<String>,
     scheduled_for: Option<String>,
 }
@@ -1044,7 +1068,7 @@ mod tests {
         state.stock_items[0].quantity = 1;
         let maintenance = command(
             Role::Tecnico,
-            serde_json::json!({"valve_id":"valve-c1","performed_at":"2026-08-13","technician":"Tech","maintenance_type":"preventive","service":"Inspection","kit_changed":true}),
+            serde_json::json!({"valve_id":"valve-c1","performed_at":"2026-08-13","technician":"Tech","maintenance_type":"preventive","service":"Inspection","signature_ref":"signatures/test.png","kit_changed":true}),
         );
         state
             .execute(
@@ -1081,7 +1105,7 @@ mod tests {
             .unwrap();
         let maintenance = command(
             Role::Tecnico,
-            serde_json::json!({"valve_id":"valve-c1","performed_at":"2026-08-13","technician":"Tech","maintenance_type":"corrective","service":"Repair","kit_changed":true}),
+            serde_json::json!({"valve_id":"valve-c1","performed_at":"2026-08-13","technician":"Tech","maintenance_type":"corrective","service":"Repair","signature_ref":"signatures/test.png","kit_changed":true}),
         );
         state
             .execute(
@@ -1105,6 +1129,7 @@ mod tests {
             Err("forbidden".to_string())
         );
         assert!(state.valves.is_empty());
+        assert!(state.audit_events.is_empty());
     }
 
     #[test]
@@ -1167,5 +1192,33 @@ mod tests {
             .execute(commands::DELETE_VALVE_PHOTO, "c3", "idem-3", 3, &remove)
             .unwrap();
         assert!(state.valve_photos.is_empty());
+    }
+
+    #[test]
+    fn supplier_rejects_invalid_email_and_website() {
+        let mut state = ApplicationState::default();
+        let invalid_email = command(
+            Role::Admin,
+            serde_json::json!({"name":"Supplier","contact":"Person","email":"invalid"}),
+        );
+        assert_eq!(
+            state.execute(commands::CREATE_SUPPLIER, "c1", "idem-1", 1, &invalid_email,),
+            Err("supplier_email_invalid".to_string())
+        );
+        let invalid_website = command(
+            Role::Admin,
+            serde_json::json!({"name":"Supplier","contact":"Person","website":"example.com"}),
+        );
+        assert_eq!(
+            state.execute(
+                commands::CREATE_SUPPLIER,
+                "c2",
+                "idem-2",
+                2,
+                &invalid_website,
+            ),
+            Err("supplier_website_invalid".to_string())
+        );
+        assert!(state.suppliers.is_empty());
     }
 }

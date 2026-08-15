@@ -85,10 +85,9 @@ denied by default.
 | `report.read`, `audit.read` | Allow | Allow | Deny | Deny |
 | `admin.manage` | Allow | Deny | Deny | Deny |
 
-This table describes policy decisions, not a claim that every listed legacy
-action has a registered command. The current capability manifest does not
-register order, restock, or stock deletion commands; those workflows remain
-open in the functional parity checklist.
+Every listed write action has a registered capability. Destructive commands are
+audited and enforce retention rules: completed orders, approved restocks and
+non-empty stock items cannot be deleted.
 
 ## Enforcement rules
 
@@ -100,4 +99,6 @@ open in the functional parity checklist.
   product decision changes it.
 - `audit.read` is separate from `maintenance.read`; the rebuild includes a real
   audit view for admin and chefe.
-- Auditing denied command/query attempts remains pending.
+- Successful writes persist semantic audit rows. Denied/failed commands are
+  emitted to redacted operational logs, not canonical audit, to prevent
+  unauthenticated traffic from growing business state.

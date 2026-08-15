@@ -4,6 +4,7 @@ import { getCurrentSession } from "./auth-server";
 import { can } from "./permissions";
 import type {
   AuditEvent,
+  AuditListResult,
   CommandResult,
   ListResult,
   MaintenanceRecord,
@@ -20,15 +21,21 @@ import type {
 const COMMAND_PERMISSIONS: Record<string, string> = {
   "proexel.valves.create": "valve.create",
   "proexel.valves.update": "valve.update_technical_fields",
+  "proexel.valves.add_photo": "valve.update_photo",
+  "proexel.valves.delete_photo": "valve.update_photo",
   "proexel.maintenance.register": "maintenance.register",
   "proexel.orders.create": "order.create",
   "proexel.orders.change_status": "order.change_status",
+  "proexel.orders.delete": "order.delete",
   "proexel.purchasing.create_restock_request": "restock.create_suggestion",
   "proexel.purchasing.review_restock_request": "restock.approve_reject",
+  "proexel.purchasing.delete_restock_request": "restock.delete",
   "proexel.stock.adjust": "stock.adjust_quantity",
   "proexel.stock.upsert_item": "stock.add_or_increment",
+  "proexel.stock.delete_item": "stock.delete",
   "proexel.suppliers.create": "supplier.create_update_delete",
   "proexel.suppliers.update": "supplier.create_update_delete",
+  "proexel.suppliers.delete": "supplier.create_update_delete",
 };
 
 const QUERY_PERMISSIONS: Record<string, string> = {
@@ -59,6 +66,14 @@ const SERVICE_ERROR_KEYS: Record<string, TranslationKey> = {
   stock_cannot_be_negative: "service.stockNegative",
   stock_quantity_overflow: "service.stockOverflow",
   supplier_not_found: "service.supplierNotFound",
+  completed_order_cannot_be_deleted: "service.completedOrderDelete",
+  approved_restock_cannot_be_deleted: "service.approvedRestockDelete",
+  stock_item_not_empty: "service.stockNotEmpty",
+  photo_not_found: "service.photoNotFound",
+  photo_already_exists: "service.photoExists",
+  signature_required: "service.signatureRequired",
+  supplier_email_invalid: "service.supplierEmailInvalid",
+  supplier_website_invalid: "service.supplierWebsiteInvalid",
 };
 
 const EMPTY_OVERVIEW: OverviewResult = {
@@ -106,7 +121,14 @@ async function query<T>(capability: string, fallback: T, payload: Record<string,
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       cache: "no-store",
-      body: JSON.stringify({ query_name: capability, query_id: `web-${crypto.randomUUID()}`, payload }),
+      body: JSON.stringify({
+        query_name: capability,
+        query_id: `web-${crypto.randomUUID()}`,
+        payload: {
+          actor: { id: session.sub, name: session.name, role: session.role },
+          data: payload,
+        },
+      }),
     });
     if (!response.ok) return fallback;
     const body = (await response.json()) as { ok?: boolean; payload?: T };
@@ -164,14 +186,20 @@ export async function getOverview(): Promise<OverviewResult> {
 }
 
 export async function listValves(payload: Record<string, unknown> = {}): Promise<ValveListResult> {
-  const fallback = emptyList<Valve>();
+  const fallback: ValveListResult = {
+    ...emptyList<Valve>(),
+    total: 0,
+    page: 1,
+    page_size: 25,
+    facets: { zones: [], valve_types: [] },
+  };
   const result = await query("proexel.valves.list", fallback, payload);
   return { ...result, source: result === fallback ? "unavailable" : "appcore" };
 }
 
-async function listQuery<T>(capability: string): Promise<ListResult<T>> {
+async function listQuery<T>(capability: string, payload: Record<string, unknown> = {}): Promise<ListResult<T>> {
   const fallback = emptyList<T>();
-  const result = await query(capability, fallback);
+  const result = await query(capability, fallback, payload);
   return { ...result, source: result === fallback ? "unavailable" : "appcore" };
 }
 
@@ -180,7 +208,19 @@ export const listServiceOrders = () => listQuery<ServiceOrder>("proexel.orders.l
 export const listRestockRequests = () => listQuery<RestockRequest>("proexel.purchasing.list_restock_requests");
 export const listStock = () => listQuery<StockItem>("proexel.stock.list");
 export const listSuppliers = () => listQuery<Supplier>("proexel.suppliers.list");
-export const listAudit = () => listQuery<AuditEvent>("proexel.audit.list");
+export async function listAudit(payload: Record<string, unknown> = {}): Promise<AuditListResult> {
+  const fallback: AuditListResult = {
+    ...emptyList<AuditEvent>(),
+    total: 0,
+    page: 1,
+    page_size: 50,
+    operations: [],
+    actors: [],
+    aggregates: [],
+  };
+  const result = await query("proexel.audit.list", fallback, payload);
+  return { ...result, source: result === fallback ? "unavailable" : "appcore" };
+}
 
 export async function getReports(): Promise<ReportResult> {
   const fallback: ReportResult = {

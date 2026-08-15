@@ -14,3 +14,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   return commandResponse("proexel.stock.adjust", request);
 }
+
+export async function DELETE(request: Request) {
+  return commandResponse("proexel.stock.delete_item", request);
+}

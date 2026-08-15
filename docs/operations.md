@@ -7,6 +7,10 @@ uses scoped command/query tokens and never reads the state file directly. The
 JSON adapter writes a complete temporary file, flushes it, and renames it over
 the previous version while holding the application transaction lock.
 
+Next.js is the only writer of protected photo/signature files under
+`PROEXEL_ATTACHMENTS_DIR`. Attachment metadata remains canonical Rust state, so
+state and files must be backed up and restored together.
+
 ## Backup and restore
 
 Follow [`backup-restore.md`](backup-restore.md) for the cold-copy, checksum,

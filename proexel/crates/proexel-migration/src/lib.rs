@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use proexel_application::ApplicationState;
 use proexel_domain::{
     normalize_reference, normalize_tag, AuditEvent, MaintenanceRecord, MaintenanceType,
-    RestockRequest, RestockStatus, ServiceOrder, ServiceOrderStatus, StockItem, Supplier, Valve,
-    ValvePhoto,
+    RestockRequest, RestockStatus, ServiceOrder, ServiceOrderPriority, ServiceOrderStatus,
+    StockItem, Supplier, Valve, ValvePhoto,
 };
 use serde::{Deserialize, Serialize};
 
@@ -400,7 +400,7 @@ fn import_orders(
             valve_id: valve.map(|v| v.id.clone()),
             valve_tag_snapshot: old.valve_tag.as_deref().map(normalize_tag),
             description: old.description.clone(),
-            priority: old.priority.clone(),
+            priority: order_priority(&old.priority),
             status: order_status(&old.status),
             created_by: old
                 .created_by
@@ -540,6 +540,15 @@ fn order_status(v: &str) -> ServiceOrderStatus {
         "andamento" | "in_progress" => ServiceOrderStatus::InProgress,
         "concluida" | "concluída" | "completed" => ServiceOrderStatus::Completed,
         _ => ServiceOrderStatus::Pending,
+    }
+}
+
+fn order_priority(value: &str) -> ServiceOrderPriority {
+    match value.trim().to_lowercase().as_str() {
+        "low" | "baixa" | "baja" | "faible" => ServiceOrderPriority::Low,
+        "high" | "alta" | "haute" => ServiceOrderPriority::High,
+        "urgent" | "urgente" => ServiceOrderPriority::Urgent,
+        _ => ServiceOrderPriority::Normal,
     }
 }
 fn restock_status(v: &str) -> RestockStatus {

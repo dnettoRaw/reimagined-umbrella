@@ -2,12 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-DEPLOYMENT="$ROOT_DIR/proexel/apps/service/deployment.local.toml"
-SECRET="$ROOT_DIR/proexel/apps/service/target/runtime/runtime-security.secret"
+DEPLOYMENT="${PROEXEL_DEPLOYMENT_MANIFEST:-$ROOT_DIR/proexel/apps/service/deployment.local.toml}"
+SECRET="${PROEXEL_RUNTIME_SECRET_FILE:-$(dirname "$DEPLOYMENT")/target/runtime/runtime-security.secret}"
 APPCORE_MANIFEST="$ROOT_DIR/core/AppCore-Runtime/Cargo.toml"
 APPCORE_BIN="$ROOT_DIR/core/AppCore-Runtime/target/debug/appcore-bin"
 SERVICE_BIN="$ROOT_DIR/proexel/target/debug/proexel-service"
 DEV_TTL_MS="${PROEXEL_DEV_TTL_MS:-10800000}"
+WEB_PORT="${PROEXEL_WEB_PORT:-3000}"
+SERVICE_URL="${PROEXEL_SERVICE_URL:-http://127.0.0.1:39400}"
 
 cargo build --quiet --manifest-path "$APPCORE_MANIFEST" -p appcore-bin --bin appcore-bin
 cargo build --quiet --manifest-path "$ROOT_DIR/proexel/Cargo.toml" -p proexel-service
@@ -16,11 +18,14 @@ mkdir -p "$(dirname "$SECRET")"
 chmod 600 "$SECRET"
 
 commands=(
-  proexel.valves.create proexel.valves.update proexel.maintenance.register
-  proexel.orders.create proexel.orders.change_status
+  proexel.valves.create proexel.valves.update
+  proexel.valves.add_photo proexel.valves.delete_photo
+  proexel.maintenance.register
+  proexel.orders.create proexel.orders.change_status proexel.orders.delete
   proexel.purchasing.create_restock_request proexel.purchasing.review_restock_request
-  proexel.stock.adjust proexel.stock.upsert_item
-  proexel.suppliers.create proexel.suppliers.update
+  proexel.purchasing.delete_restock_request
+  proexel.stock.adjust proexel.stock.upsert_item proexel.stock.delete_item
+  proexel.suppliers.create proexel.suppliers.update proexel.suppliers.delete
 )
 queries=(
   proexel.overview.get proexel.valves.list proexel.maintenance.list
@@ -64,10 +69,10 @@ APPCORE_DEPLOYMENT_MANIFEST="$DEPLOYMENT" \
 "$SERVICE_BIN" &
 service_pid=$!
 
-export PROEXEL_SERVICE_URL="http://127.0.0.1:39400"
+export PROEXEL_SERVICE_URL="$SERVICE_URL"
 export PROEXEL_SERVICE_TOKENS="$tokens"
 
 cd "$ROOT_DIR/proexel/apps/web"
-./node_modules/.bin/next dev &
+./node_modules/.bin/next dev --hostname 127.0.0.1 --port "$WEB_PORT" &
 web_pid=$!
 wait "$web_pid"

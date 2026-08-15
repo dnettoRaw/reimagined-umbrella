@@ -1,4 +1,4 @@
-import { Building2, Plus } from "lucide-react";
+import { Building2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
 import { listSuppliers } from "@/lib/proexel/service";
 
+import { CommandButton } from "../_components/command-button";
 import { CommandDialog } from "../_components/command-dialog";
 import { PageHeader } from "../_components/page-header";
 import { ProexelEmptyState } from "../_components/proexel-empty-state";
@@ -70,6 +71,7 @@ export default async function SuppliersPage() {
                     <TableHead>{t("common.email")}</TableHead>
                     <TableHead>{t("common.website")}</TableHead>
                     <TableHead>{t("common.notes")}</TableHead>
+                    <TableHead className="text-right">{t("common.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -93,6 +95,69 @@ export default async function SuppliersPage() {
                         )}
                       </TableCell>
                       <TableCell className="max-w-80 whitespace-normal">{supplier.notes ?? "-"}</TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-2">
+                          {can("supplier.create_update_delete", role) ? (
+                            <>
+                              <CommandDialog
+                                trigger={
+                                  <Button size="icon-sm" variant="ghost" title={t("common.edit")}>
+                                    <Pencil />
+                                    <span className="sr-only">{t("common.edit")}</span>
+                                  </Button>
+                                }
+                                title={t("suppliers.edit")}
+                                description={t("suppliers.editDescription")}
+                                endpoint="/api/proexel/suppliers"
+                                method="PATCH"
+                                fields={[
+                                  { name: "id", label: "ID", type: "hidden", defaultValue: supplier.id },
+                                  {
+                                    name: "name",
+                                    label: t("common.name"),
+                                    required: true,
+                                    defaultValue: supplier.name,
+                                  },
+                                  {
+                                    name: "contact",
+                                    label: t("common.contact"),
+                                    required: true,
+                                    defaultValue: supplier.contact,
+                                  },
+                                  {
+                                    name: "email",
+                                    label: t("common.email"),
+                                    type: "email",
+                                    defaultValue: supplier.email ?? "",
+                                  },
+                                  {
+                                    name: "website",
+                                    label: t("common.website"),
+                                    type: "url",
+                                    defaultValue: supplier.website ?? "",
+                                  },
+                                  {
+                                    name: "notes",
+                                    label: t("common.notes"),
+                                    type: "textarea",
+                                    defaultValue: supplier.notes ?? "",
+                                  },
+                                ]}
+                              />
+                              <CommandButton
+                                endpoint="/api/proexel/suppliers"
+                                data={{ id: supplier.id }}
+                                method="DELETE"
+                                variant="destructive"
+                                confirmMessage={t("suppliers.deleteConfirm")}
+                              >
+                                <Trash2 />
+                                <span className="sr-only">{t("common.delete")}</span>
+                              </CommandButton>
+                            </>
+                          ) : null}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
