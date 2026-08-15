@@ -80,6 +80,9 @@ Validated command capabilities:
 - `proexel.suppliers.create`
 - `proexel.suppliers.update`
 - `proexel.suppliers.delete`
+- `proexel.admin.users.create`
+- `proexel.admin.users.update`
+- `proexel.admin.users.reset_credentials`
 
 Validated query capabilities:
 
@@ -92,9 +95,16 @@ Validated query capabilities:
 - `proexel.suppliers.list`
 - `proexel.audit.list`
 - `proexel.reports.get`
+- `proexel.admin.users.list`
+- `proexel.identity.resolve`
 
 These names are application-owned. They must not use reserved namespaces
 `appcore.*`, `runtime.*` or `infrastructure.*`.
+
+`proexel.identity.resolve` is the only pre-session query. Its scoped bearer token
+is held exclusively by Next.js on the protected service network. It returns one
+identity to the server authentication adapter; hashes are never returned by the
+admin list API or browser UI.
 
 ## Storage approach
 
@@ -136,8 +146,8 @@ AppCore security provides reusable token/secret primitives. PROEXEL must define:
 - UI state derived from permissions.
 
 The web adapter reads the actor and role only from an HMAC-signed, `HttpOnly`
-session cookie. Passwords are verified server-side with scrypt hashes from the
-server-only `PROEXEL_AUTH_USERS` configuration. The proxy protects dashboard and
+session cookie. Passwords and optional PINs are verified server-side with scrypt
+hashes resolved through a server-only scoped AppCore query. The proxy protects dashboard and
 product API routes, pages enforce read permissions, the command proxy checks the
 same permission matrix, and the application handler independently enforces RBAC.
 
@@ -149,8 +159,8 @@ Legacy auth details replaced:
 - Supabase SECURITY DEFINER RPC `app_login`.
 
 The local launcher generates a random administrator password and session secret
-for each run. Production still requires a managed identity provisioning and
-secret-rotation process rather than a static environment user directory.
+for each run. The environment user directory is imported only as first-run seed;
+subsequent management is capability-protected and audited in canonical state.
 
 ## Admin dashboard template surface
 

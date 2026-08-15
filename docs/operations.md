@@ -22,11 +22,15 @@ does not schedule or create application backups automatically.
 
 `dev-stack.sh` prints a random, one-run administrator credential. Deployed
 installations must set a random `PROEXEL_SESSION_SECRET` of at least 32
-characters and a server-only `PROEXEL_AUTH_USERS` JSON array. Password hashes use
-`scrypt$salt$hex`; plaintext passwords must not be stored in that configuration.
+characters. `PROEXEL_AUTH_USERS` seeds the first active administrator only when
+canonical user state is empty. Password/PIN hashes use `scrypt$salt$hex`;
+plaintext credentials are accepted only by the protected Next.js API and are
+never persisted or audited.
 Sessions are signed, `HttpOnly`, `SameSite=Strict`, and expire after eight hours
 unless the operator explicitly selects the 30-day option. Five failed attempts
 from one forwarded client address trigger a 15-minute lockout.
+Role, activation and credential changes increment `auth_version`, invalidating
+all existing sessions for that user.
 
 ## Runtime states
 

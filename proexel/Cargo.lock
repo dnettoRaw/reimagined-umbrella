@@ -1232,6 +1232,7 @@ dependencies = [
  "proexel-application",
  "proexel-domain",
  "proexel-infrastructure",
+ "serde",
  "serde_json",
 ]
 

@@ -83,10 +83,14 @@ mounted for concurrent writers.
 
 ## Authentication and authorization
 
-Next.js verifies configured scrypt password hashes and issues an HMAC-SHA-256
-signed, `HttpOnly`, `SameSite=Strict` cookie. The default session lasts eight
-hours; the explicit remember option lasts 30 days. Five failures for one
-forwarded client address cause a 15-minute in-process lockout.
+User accounts are canonical Rust state and can be managed only through
+`admin.users.manage`. Next.js resolves one identity through a dedicated,
+server-only AppCore capability, verifies scrypt password/PIN hashes and issues
+an HMAC-SHA-256 signed, `HttpOnly`, `SameSite=Strict` cookie. An authentication
+version immediately invalidates sessions after role, status or credential
+changes. The default session lasts eight hours; the explicit remember option
+lasts 30 days. Five failures per forwarded client address cause a 15-minute
+in-process lockout.
 
 Authorization is repeated at two application-facing boundaries:
 
@@ -122,7 +126,8 @@ that remote synchronization succeeded.
 ## Current limitations
 
 - No remote sync/outbox is configured for the supported standalone deployment.
-- Production identity provisioning remains deployment-owned.
+- Initial administrator seeding remains a controlled deployment step; later
+  accounts are managed in the admin UI.
 - Shared rate limiting is required only if the web tier is horizontally scaled.
 - The local attachment adapter does not generate thumbnails or validate decoded
   image dimensions.

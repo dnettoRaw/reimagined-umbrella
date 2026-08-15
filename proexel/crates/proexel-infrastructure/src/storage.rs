@@ -1,4 +1,4 @@
-use std::fs::{self, File};
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -70,6 +70,7 @@ fn load_state(path: &Path) -> Result<ApplicationState, String> {
     if !path.exists() {
         return Ok(ApplicationState::default());
     }
+    secure_file(path)?;
     let bytes = fs::read(path).map_err(|error| format!("storage_read_failed: {error}"))?;
     serde_json::from_slice(&bytes).map_err(|error| format!("storage_decode_failed: {error}"))
 }
@@ -82,8 +83,13 @@ fn persist_state(path: &Path, state: &ApplicationState) -> Result<(), String> {
     let temporary = path.with_extension("json.tmp");
     let bytes = serde_json::to_vec_pretty(state)
         .map_err(|error| format!("storage_encode_failed: {error}"))?;
-    let mut file =
-        File::create(&temporary).map_err(|error| format!("storage_create_failed: {error}"))?;
+    let mut file = OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(&temporary)
+        .map_err(|error| format!("storage_create_failed: {error}"))?;
+    secure_file(&temporary)?;
     file.write_all(&bytes)
         .map_err(|error| format!("storage_write_failed: {error}"))?;
     file.sync_all()
@@ -91,10 +97,26 @@ fn persist_state(path: &Path, state: &ApplicationState) -> Result<(), String> {
     fs::rename(&temporary, path).map_err(|error| format!("storage_commit_failed: {error}"))
 }
 
+#[cfg(unix)]
+fn secure_file(path: &Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+        .map_err(|error| format!("storage_permissions_failed: {error}"))
+}
+
+#[cfg(not(unix))]
+fn secure_file(_path: &Path) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::thread;
+
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
 
     #[test]
     fn transaction_is_durable_and_failed_write_is_not_committed() {
@@ -120,6 +142,11 @@ mod tests {
         });
         assert_eq!(result, Err("stop".to_string()));
         assert_eq!(store.read().unwrap().schema_version, 7);
+        #[cfg(unix)]
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
         let _ = fs::remove_file(path);
     }
 

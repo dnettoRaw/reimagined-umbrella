@@ -4,7 +4,7 @@ use proexel_domain::{
     adjust_stock, can_transition_order, normalize_reference, normalize_tag, AuditEvent,
     MaintenanceRecord, MaintenanceType, RestockRequest, RestockStatus, ServiceOrder,
     ServiceOrderPriority, ServiceOrderStatus, StockItem, StockMovement, StockMovementKind,
-    Supplier, Valve, ValvePhoto,
+    Supplier, UserAccount, Valve, ValvePhoto,
 };
 use serde::{Deserialize, Serialize};
 
@@ -54,6 +54,8 @@ pub struct ApplicationState {
     #[serde(default)]
     pub valve_photos: Vec<ValvePhoto>,
     #[serde(default)]
+    pub user_accounts: Vec<UserAccount>,
+    #[serde(default)]
     pub audit_events: Vec<AuditEvent>,
     #[serde(default)]
     pub processed_commands: BTreeMap<String, ExecutionReceipt>,
@@ -71,6 +73,7 @@ impl Default for ApplicationState {
             stock_movements: Vec::new(),
             suppliers: Vec::new(),
             valve_photos: Vec::new(),
+            user_accounts: Vec::new(),
             audit_events: Vec::new(),
             processed_commands: BTreeMap::new(),
         }
@@ -130,6 +133,11 @@ impl ApplicationState {
             }
             commands::UPDATE_SUPPLIER => self.update_supplier(issued_at_ms, &payload)?,
             commands::DELETE_SUPPLIER => self.delete_supplier(&payload)?,
+            commands::CREATE_USER => self.create_user(command_id, issued_at_ms, &payload)?,
+            commands::UPDATE_USER => self.update_user(issued_at_ms, &payload)?,
+            commands::RESET_USER_CREDENTIALS => {
+                self.reset_user_credentials(issued_at_ms, &payload)?
+            }
             _ => return Err("unknown_command".to_string()),
         };
 
@@ -796,6 +804,175 @@ impl ApplicationState {
         ))
     }
 
+    pub fn seed_users(&mut self, mut users: Vec<UserAccount>) -> Result<(), String> {
+        if !self.user_accounts.is_empty() {
+            return Ok(());
+        }
+        let unique_ids = users
+            .iter()
+            .map(|user| user.id.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        if unique_ids.len() != users.len() {
+            return Err("user_id_already_exists".to_string());
+        }
+        for user in &mut users {
+            user.email = normalize_email(&user.email)?;
+            require_text(&user.name, "user_name_required")?;
+            validate_role_name(&user.role)?;
+            validate_auth_hash(&user.password_hash, "password_hash_invalid")?;
+            if let Some(pin_hash) = user.pin_hash.as_deref() {
+                validate_auth_hash(pin_hash, "pin_hash_invalid")?;
+            }
+        }
+        let unique_emails = users
+            .iter()
+            .map(|user| user.email.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        if unique_emails.len() != users.len() {
+            return Err("user_email_already_exists".to_string());
+        }
+        if !users.iter().any(|user| user.active && user.role == "admin") {
+            return Err("active_admin_required".to_string());
+        }
+        self.user_accounts = users;
+        Ok(())
+    }
+
+    fn create_user(
+        &mut self,
+        command_id: &str,
+        now: u64,
+        payload: &CommandPayload,
+    ) -> Result<Action, String> {
+        require_permission(payload.actor.role, "admin.users.manage")?;
+        let input: CreateUser = parse_data(payload)?;
+        let email = normalize_email(&input.email)?;
+        require_text(&input.name, "user_name_required")?;
+        validate_auth_hash(&input.password_hash, "password_hash_invalid")?;
+        if let Some(pin_hash) = input.pin_hash.as_deref() {
+            validate_auth_hash(pin_hash, "pin_hash_invalid")?;
+        }
+        if self.user_accounts.iter().any(|user| user.email == email) {
+            return Err("user_email_already_exists".to_string());
+        }
+        let id = format!("user-{command_id}");
+        let user = UserAccount {
+            id: id.clone(),
+            email,
+            name: input.name.trim().to_string(),
+            role: role_name(input.role).to_string(),
+            password_hash: input.password_hash,
+            pin_hash: input.pin_hash,
+            active: true,
+            auth_version: 1,
+            created_at_ms: now,
+            updated_at_ms: now,
+        };
+        let after = user_audit_value(&user);
+        self.user_accounts.push(user);
+        Ok(action(
+            "admin.users.manage",
+            "user_account",
+            id,
+            None,
+            after,
+            "User created",
+        ))
+    }
+
+    fn update_user(&mut self, now: u64, payload: &CommandPayload) -> Result<Action, String> {
+        require_permission(payload.actor.role, "admin.users.manage")?;
+        let input: UpdateUser = parse_data(payload)?;
+        let email = normalize_email(&input.email)?;
+        require_text(&input.name, "user_name_required")?;
+        let index = self
+            .user_accounts
+            .iter()
+            .position(|user| user.id == input.id)
+            .ok_or_else(|| "user_not_found".to_string())?;
+        if self
+            .user_accounts
+            .iter()
+            .any(|user| user.id != input.id && user.email == email)
+        {
+            return Err("user_email_already_exists".to_string());
+        }
+        let current = &self.user_accounts[index];
+        let removes_active_admin = current.active
+            && current.role == "admin"
+            && (!input.active || input.role != Role::Admin);
+        if removes_active_admin
+            && self
+                .user_accounts
+                .iter()
+                .filter(|user| user.active && user.role == "admin")
+                .count()
+                <= 1
+        {
+            return Err("last_active_admin_required".to_string());
+        }
+        let before = user_audit_value(current);
+        let user = &mut self.user_accounts[index];
+        user.email = email;
+        user.name = input.name.trim().to_string();
+        user.role = role_name(input.role).to_string();
+        user.active = input.active;
+        user.auth_version = user.auth_version.saturating_add(1);
+        user.updated_at_ms = now;
+        let after = user_audit_value(user);
+        Ok(action(
+            "admin.users.manage",
+            "user_account",
+            input.id,
+            before,
+            after,
+            "User updated",
+        ))
+    }
+
+    fn reset_user_credentials(
+        &mut self,
+        now: u64,
+        payload: &CommandPayload,
+    ) -> Result<Action, String> {
+        require_permission(payload.actor.role, "admin.users.manage")?;
+        let input: ResetUserCredentials = parse_data(payload)?;
+        if input.password_hash.is_none() && input.pin_hash.is_none() && !input.clear_pin {
+            return Err("credential_change_required".to_string());
+        }
+        if let Some(password_hash) = input.password_hash.as_deref() {
+            validate_auth_hash(password_hash, "password_hash_invalid")?;
+        }
+        if let Some(pin_hash) = input.pin_hash.as_deref() {
+            validate_auth_hash(pin_hash, "pin_hash_invalid")?;
+        }
+        let user = self
+            .user_accounts
+            .iter_mut()
+            .find(|user| user.id == input.id)
+            .ok_or_else(|| "user_not_found".to_string())?;
+        let before = user_audit_value(user);
+        if let Some(password_hash) = input.password_hash {
+            user.password_hash = password_hash;
+        }
+        if input.clear_pin {
+            user.pin_hash = None;
+        } else if let Some(pin_hash) = input.pin_hash {
+            user.pin_hash = Some(pin_hash);
+        }
+        user.auth_version = user.auth_version.saturating_add(1);
+        user.updated_at_ms = now;
+        let after = user_audit_value(user);
+        Ok(action(
+            "admin.users.manage",
+            "user_account",
+            input.id,
+            before,
+            after,
+            "User credentials reset",
+        ))
+    }
+
     fn ensure_stock_item(&mut self, reference: &str, source_id: &str, now: u64) {
         if self
             .stock_items
@@ -918,6 +1095,50 @@ fn validate_supplier_links(email: Option<&str>, website: Option<&str>) -> Result
     }
     Ok(())
 }
+fn normalize_email(value: &str) -> Result<String, String> {
+    let email = value.trim().to_lowercase();
+    let (local, domain) = email
+        .split_once('@')
+        .ok_or_else(|| "user_email_invalid".to_string())?;
+    if local.is_empty() || !domain.contains('.') || email.contains(char::is_whitespace) {
+        return Err("user_email_invalid".to_string());
+    }
+    Ok(email)
+}
+fn validate_role_name(role: &str) -> Result<(), String> {
+    if matches!(role, "admin" | "chefe" | "compras" | "tecnico") {
+        Ok(())
+    } else {
+        Err("user_role_invalid".to_string())
+    }
+}
+fn validate_auth_hash(value: &str, error: &str) -> Result<(), String> {
+    let mut parts = value.split('$');
+    let algorithm = parts.next();
+    let salt = parts.next().unwrap_or_default();
+    let digest = parts.next().unwrap_or_default();
+    if algorithm != Some("scrypt")
+        || salt.is_empty()
+        || digest.len() < 32
+        || digest.len() % 2 != 0
+        || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || parts.next().is_some()
+    {
+        return Err(error.to_string());
+    }
+    Ok(())
+}
+fn user_audit_value(user: &UserAccount) -> Option<String> {
+    json_string(&serde_json::json!({
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "active": user.active,
+        "has_pin": user.pin_hash.is_some(),
+        "auth_version": user.auth_version,
+    }))
+}
 
 #[derive(Deserialize)]
 struct CreateValve {
@@ -1023,6 +1244,30 @@ struct UpdateSupplier {
     email: Option<String>,
     website: Option<String>,
     notes: Option<String>,
+}
+#[derive(Deserialize)]
+struct CreateUser {
+    email: String,
+    name: String,
+    role: Role,
+    password_hash: String,
+    pin_hash: Option<String>,
+}
+#[derive(Deserialize)]
+struct UpdateUser {
+    id: String,
+    email: String,
+    name: String,
+    role: Role,
+    active: bool,
+}
+#[derive(Deserialize)]
+struct ResetUserCredentials {
+    id: String,
+    password_hash: Option<String>,
+    pin_hash: Option<String>,
+    #[serde(default)]
+    clear_pin: bool,
 }
 
 #[cfg(test)]
@@ -1220,5 +1465,87 @@ mod tests {
             Err("supplier_website_invalid".to_string())
         );
         assert!(state.suppliers.is_empty());
+    }
+
+    #[test]
+    fn user_management_redacts_credentials_and_invalidates_sessions() {
+        let mut state = ApplicationState::default();
+        let hash = format!("scrypt$salt${}", "ab".repeat(32));
+        let create = command(
+            Role::Admin,
+            serde_json::json!({
+                "email":"ADMIN@EXAMPLE.COM",
+                "name":"Main Admin",
+                "role":"admin",
+                "password_hash":hash,
+                "pin_hash":format!("scrypt$pin${}", "cd".repeat(32))
+            }),
+        );
+        state
+            .execute(commands::CREATE_USER, "u1", "user-idem-1", 1, &create)
+            .unwrap();
+        assert_eq!(state.user_accounts[0].email, "admin@example.com");
+        assert_eq!(state.user_accounts[0].auth_version, 1);
+        let audit = state.audit_events.last().unwrap();
+        let snapshot = audit.after_json.as_deref().unwrap();
+        assert!(snapshot.contains("\"has_pin\":true"));
+        assert!(!snapshot.contains("password_hash"));
+        assert!(!snapshot.contains("scrypt$"));
+
+        let reset = command(
+            Role::Admin,
+            serde_json::json!({"id":"user-u1","password_hash":format!("scrypt$new${}", "ef".repeat(32))}),
+        );
+        state
+            .execute(
+                commands::RESET_USER_CREDENTIALS,
+                "u2",
+                "user-idem-2",
+                2,
+                &reset,
+            )
+            .unwrap();
+        assert_eq!(state.user_accounts[0].auth_version, 2);
+        assert!(!state
+            .audit_events
+            .last()
+            .unwrap()
+            .after_json
+            .as_deref()
+            .unwrap()
+            .contains("scrypt$"));
+    }
+
+    #[test]
+    fn last_active_administrator_cannot_be_disabled_or_demoted() {
+        let mut state = ApplicationState::default();
+        let create = command(
+            Role::Admin,
+            serde_json::json!({
+                "email":"admin@example.com",
+                "name":"Main Admin",
+                "role":"admin",
+                "password_hash":format!("scrypt$salt${}", "ab".repeat(32))
+            }),
+        );
+        state
+            .execute(commands::CREATE_USER, "u1", "user-idem-1", 1, &create)
+            .unwrap();
+        let disable = command(
+            Role::Admin,
+            serde_json::json!({
+                "id":"user-u1",
+                "email":"admin@example.com",
+                "name":"Main Admin",
+                "role":"admin",
+                "active":false
+            }),
+        );
+        assert_eq!(
+            state.execute(commands::UPDATE_USER, "u2", "user-idem-2", 2, &disable),
+            Err("last_active_admin_required".to_string())
+        );
+        assert!(state.user_accounts[0].active);
+        assert_eq!(state.user_accounts[0].role, "admin");
     }
 }

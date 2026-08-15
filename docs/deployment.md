@@ -51,8 +51,8 @@ environment values and deployment manifests.
 3. Create or rotate the AppCore runtime security secret.
 4. Generate scoped command/query tokens for every capability in
    `application.toml` and expose the JSON map only to Next.js.
-5. Load `PROEXEL_SESSION_SECRET` and `PROEXEL_AUTH_USERS` from the platform
-   secret store.
+5. Load `PROEXEL_SESSION_SECRET`; on first bootstrap only, provide an active
+   administrator through `PROEXEL_AUTH_USERS` to the Rust service.
 6. Set `PROEXEL_DATA_FILE` to an absolute state path when not using the local
    manifest layout.
 7. Set `PROEXEL_ATTACHMENTS_DIR` to an absolute private path owned by Next.js.
@@ -70,6 +70,7 @@ Rust service minimum:
 APPCORE_APPLICATION_MANIFEST=/etc/proexel/application.toml
 APPCORE_DEPLOYMENT_MANIFEST=/etc/proexel/deployment.toml
 PROEXEL_DATA_FILE=/var/lib/proexel/proexel-state-v1.json
+PROEXEL_AUTH_USERS=<first-bootstrap server-only JSON array>
 ```
 
 Next.js minimum:
@@ -79,7 +80,6 @@ NODE_ENV=production
 PROEXEL_SERVICE_URL=http://127.0.0.1:39400
 PROEXEL_SERVICE_TOKENS=<server-only JSON map>
 PROEXEL_SESSION_SECRET=<server-only random secret>
-PROEXEL_AUTH_USERS=<server-only JSON array>
 PROEXEL_ATTACHMENTS_DIR=/var/lib/proexel/attachments
 ```
 
@@ -130,6 +130,5 @@ unsupported newer state schema.
 
 Before declaring this baseline production-ready, resolve the open items in
 [functional-parity-checklist.md](functional-parity-checklist.md), especially
-managed identity provisioning, durable distributed rate limiting if scaling the
-web tier, cutover evidence and explicit sync requirements for any future
-distributed topology.
+durable distributed rate limiting if scaling the web tier, cutover evidence and
+explicit sync requirements for any future distributed topology.

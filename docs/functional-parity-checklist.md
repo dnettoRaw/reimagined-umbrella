@@ -11,7 +11,8 @@ topology; unchecked items require code or external production evidence.
 - [x] Roles `admin`, `chefe`, `compras`, `tecnico` enforced in UI, Next routes and Rust handlers.
 - [x] Successful writes persist semantic, redacted audit events with trace IDs.
 - [x] Denied/failed commands are redacted in operational logs and do not persist attacker-controlled audit rows.
-- [ ] Provision production identities and secret rotation through the target managed platform.
+- [x] Admin user management covers creation, roles, activation, password/PIN reset, session invalidation and redacted history.
+- [x] First-run identity seeding is separated from audited runtime account management.
 - [ ] Add shared rate limiting only before horizontally scaling the Next.js tier.
 
 ## Valves and maintenance

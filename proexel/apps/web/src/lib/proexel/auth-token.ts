@@ -7,6 +7,7 @@ export interface ProexelSession {
   email: string;
   name: string;
   role: Role;
+  ver: number;
   exp: number;
 }
 
@@ -61,6 +62,7 @@ export async function verifySession(
       !session.email ||
       !session.name ||
       !ROLES.includes(session.role) ||
+      !Number.isSafeInteger(session.ver) ||
       !Number.isSafeInteger(session.exp) ||
       session.exp <= Date.now()
     ) {

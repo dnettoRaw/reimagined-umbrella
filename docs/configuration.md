@@ -37,7 +37,7 @@ untrusted network.
 | `PROEXEL_SERVICE_TOKENS` | Next.js | Recommended | JSON map from capability name to scoped bearer token |
 | `PROEXEL_SERVICE_TOKEN` | Next.js | Compatibility only | Generic fallback token when no scoped map entry exists |
 | `PROEXEL_SESSION_SECRET` | Next.js | Yes | Random HMAC secret, at least 32 characters |
-| `PROEXEL_AUTH_USERS` | Next.js | Yes | JSON array of server-side users and scrypt hashes |
+| `PROEXEL_AUTH_USERS` | Rust service | Bootstrap only | Initial users imported only when canonical user state is empty |
 | `PROEXEL_DEV_TTL_MS` | Dev launcher | No | Scoped token lifetime; defaults to 10,800,000 ms (3 hours) |
 | `PROEXEL_WEB_PORT` | Dev/E2E launcher | No | Next.js port; defaults to `3000` |
 | `PROEXEL_DEPLOYMENT_MANIFEST` | Dev/E2E launcher | No | Alternate AppCore deployment manifest |
@@ -49,7 +49,7 @@ readable only by the service account.
 
 ## User record format
 
-`PROEXEL_AUTH_USERS` is an array with this shape:
+`PROEXEL_AUTH_USERS` is a one-time seed array with this shape:
 
 ```json
 [
@@ -58,19 +58,22 @@ readable only by the service account.
     "email": "operator@example.invalid",
     "name": "Operator name",
     "role": "tecnico",
-    "password_hash": "scrypt$<salt-hex>$<derived-key-hex>"
+    "password_hash": "scrypt$<salt-hex>$<derived-key-hex>",
+    "pin_hash": "scrypt$<salt-hex>$<derived-key-hex>",
+    "active": true
   }
 ]
 ```
 
 Allowed roles are `admin`, `chefe`, `compras` and `tecnico`. IDs and emails
-must be unique by operational policy. Passwords must have at least eight
-characters; production policy should require stronger credentials.
+must be unique. Passwords have 8 to 128 characters and optional PINs have 4 to
+8 digits. Plaintext credentials never enter the Rust command or audit payload.
 
 The local launcher creates an ephemeral administrator and prints its random
-password. That behavior is for development only. Production users must be
-provisioned through an access-controlled process and the plaintext password
-must not be retained after hash generation.
+password. A production bootstrap must seed at least one active administrator,
+then remove the environment value. Later users, roles, activation and
+credentials are managed in **Users and access**; disabling or changing an
+account increments its authentication version and invalidates current sessions.
 
 ## Scoped tokens
 
@@ -97,7 +100,7 @@ Before accepting traffic:
 1. Validate both manifests with the AppCore tooling used by the target release.
 2. Confirm the runtime secret file exists with restrictive permissions.
 3. Confirm `PROEXEL_SESSION_SECRET` is present and at least 32 characters.
-4. Confirm every configured user has a valid role and scrypt hash.
+4. On first bootstrap, confirm the seed contains an active admin and valid scrypt hash.
 5. Confirm every capability used by the web adapter has a scoped token.
 6. Confirm state, attachment and backup directories are owned by the runtime account.
 7. Call `/v1/health` and perform an authenticated overview query.

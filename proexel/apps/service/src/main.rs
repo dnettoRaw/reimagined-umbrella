@@ -7,8 +7,9 @@ use appcore_bin::application::{
     EventRegistry, QueryEndpoint, QueryName, RuntimeContext, RuntimeResult,
 };
 use proexel_application::{can, commands, ApplicationState, Role};
-use proexel_domain::{maintenance_health, MaintenanceHealth};
+use proexel_domain::{maintenance_health, MaintenanceHealth, UserAccount};
 use proexel_infrastructure::JsonFileStore;
+use serde::Deserialize;
 use serde_json::{json, Value};
 
 const EVENTS: &[&str] = &[
@@ -19,6 +20,7 @@ const EVENTS: &[&str] = &[
     "restock_request.changed",
     "stock_item.changed",
     "supplier.changed",
+    "user_account.changed",
 ];
 
 #[derive(Clone)]
@@ -135,8 +137,12 @@ impl QueryEndpoint for ProexelQuery {
             .pointer("/actor/role")
             .cloned()
             .and_then(|value| serde_json::from_value::<Role>(value).ok());
+        let identity_query = self.name.as_str() == commands::RESOLVE_IDENTITY;
         let permission = query_permission(self.name.as_str());
-        if role.is_none() || permission.is_some_and(|permission| !can(role.unwrap(), permission)) {
+        if !identity_query
+            && (role.is_none()
+                || permission.is_some_and(|permission| !can(role.unwrap(), permission)))
+        {
             return json_response(403, json!({"error": "forbidden"}));
         }
         let filters = envelope.get("data").cloned().unwrap_or_else(|| json!({}));
@@ -160,6 +166,8 @@ impl QueryEndpoint for ProexelQuery {
             }
             commands::LIST_AUDIT => audit_payload(&state, &filters),
             commands::GET_REPORTS => reports_payload(&state),
+            commands::LIST_USERS => users_payload(&state),
+            commands::RESOLVE_IDENTITY => identity_payload(&state, &filters),
             _ => json!({"error": "unknown_query"}),
         };
         json_response(200, payload)
@@ -267,8 +275,44 @@ fn query_permission(name: &str) -> Option<&'static str> {
         commands::LIST_SUPPLIERS => Some("supplier.read"),
         commands::LIST_AUDIT => Some("audit.read"),
         commands::GET_REPORTS => Some("report.read"),
+        commands::LIST_USERS => Some("admin.users.manage"),
+        commands::RESOLVE_IDENTITY => None,
         _ => Some("unknown"),
     }
+}
+
+fn users_payload(state: &ApplicationState) -> Value {
+    let items = state
+        .user_accounts
+        .iter()
+        .map(|user| {
+            json!({
+                "id": user.id,
+                "email": user.email,
+                "name": user.name,
+                "role": user.role,
+                "active": user.active,
+                "has_pin": user.pin_hash.is_some(),
+                "auth_version": user.auth_version,
+                "created_at_ms": user.created_at_ms,
+                "updated_at_ms": user.updated_at_ms,
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({"items": items, "schema_version": state.schema_version})
+}
+
+fn identity_payload(state: &ApplicationState, filters: &Value) -> Value {
+    let email = filters
+        .get("email")
+        .and_then(Value::as_str)
+        .map(|value| value.trim().to_lowercase());
+    let id = filters.get("id").and_then(Value::as_str).map(str::trim);
+    let user = state.user_accounts.iter().find(|user| {
+        email.as_deref().is_some_and(|email| user.email == email)
+            || id.is_some_and(|id| user.id == id)
+    });
+    json!({"user": user})
 }
 
 fn valves_payload(state: &ApplicationState, filters: &Value) -> Value {
@@ -523,6 +567,51 @@ fn state_path() -> PathBuf {
         .join("target/runtime/storage/proexel-state-v1.json")
 }
 
+#[derive(Deserialize)]
+struct SeedUser {
+    id: String,
+    email: String,
+    name: String,
+    role: String,
+    password_hash: String,
+    #[serde(default)]
+    pin_hash: Option<String>,
+    #[serde(default = "default_true")]
+    active: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn seed_users_from_environment(store: &JsonFileStore) -> Result<(), String> {
+    let raw = std::env::var("PROEXEL_AUTH_USERS").unwrap_or_else(|_| "[]".to_string());
+    let seeds: Vec<SeedUser> =
+        serde_json::from_str(&raw).map_err(|_| "auth_users_invalid".to_string())?;
+    if seeds.is_empty() {
+        return Ok(());
+    }
+    store.transact(|state| {
+        state.seed_users(
+            seeds
+                .into_iter()
+                .map(|seed| UserAccount {
+                    id: seed.id,
+                    email: seed.email,
+                    name: seed.name,
+                    role: seed.role,
+                    password_hash: seed.password_hash,
+                    pin_hash: seed.pin_hash,
+                    active: seed.active,
+                    auth_version: 1,
+                    created_at_ms: 0,
+                    updated_at_ms: 0,
+                })
+                .collect(),
+        )
+    })
+}
+
 fn main() {
     let store = match JsonFileStore::new(state_path()) {
         Ok(store) => store,
@@ -531,6 +620,10 @@ fn main() {
             std::process::exit(1);
         }
     };
+    if let Err(error) = seed_users_from_environment(&store) {
+        eprintln!("proexel identity seed failed: {error}");
+        std::process::exit(1);
+    }
     if let Err(error) = run_application(&ProexelApplication { store }) {
         eprintln!("proexel service failed: {error}");
         std::process::exit(1);
@@ -598,6 +691,31 @@ mod tests {
             Role::Chefe,
             query_permission(commands::GET_REPORTS).unwrap()
         ));
+    }
+
+    #[test]
+    fn administrative_user_list_never_exposes_credential_hashes() {
+        let mut state = ApplicationState::default();
+        state.user_accounts.push(UserAccount {
+            id: "u1".to_string(),
+            email: "admin@example.com".to_string(),
+            name: "Admin".to_string(),
+            role: "admin".to_string(),
+            password_hash: "scrypt$salt$secret".to_string(),
+            pin_hash: Some("scrypt$pin$secret".to_string()),
+            active: true,
+            auth_version: 3,
+            created_at_ms: 1,
+            updated_at_ms: 2,
+        });
+
+        let payload = users_payload(&state);
+        let encoded = payload.to_string();
+        assert!(!encoded.contains("password_hash"));
+        assert!(!encoded.contains("pin_hash"));
+        assert!(!encoded.contains("scrypt$"));
+        assert_eq!(payload["items"][0]["has_pin"], true);
+        assert_eq!(payload["items"][0]["auth_version"], 3);
     }
 
     #[test]

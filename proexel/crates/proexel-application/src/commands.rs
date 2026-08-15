@@ -15,6 +15,9 @@ pub const DELETE_STOCK_ITEM: &str = "proexel.stock.delete_item";
 pub const CREATE_SUPPLIER: &str = "proexel.suppliers.create";
 pub const UPDATE_SUPPLIER: &str = "proexel.suppliers.update";
 pub const DELETE_SUPPLIER: &str = "proexel.suppliers.delete";
+pub const CREATE_USER: &str = "proexel.admin.users.create";
+pub const UPDATE_USER: &str = "proexel.admin.users.update";
+pub const RESET_USER_CREDENTIALS: &str = "proexel.admin.users.reset_credentials";
 pub const LIST_VALVES: &str = "proexel.valves.list";
 pub const GET_OVERVIEW: &str = "proexel.overview.get";
 pub const LIST_MAINTENANCE: &str = "proexel.maintenance.list";
@@ -24,6 +27,8 @@ pub const LIST_STOCK: &str = "proexel.stock.list";
 pub const LIST_SUPPLIERS: &str = "proexel.suppliers.list";
 pub const LIST_AUDIT: &str = "proexel.audit.list";
 pub const GET_REPORTS: &str = "proexel.reports.get";
+pub const LIST_USERS: &str = "proexel.admin.users.list";
+pub const RESOLVE_IDENTITY: &str = "proexel.identity.resolve";
 
 pub const COMMANDS: &[&str] = &[
     CREATE_VALVE,
@@ -43,6 +48,9 @@ pub const COMMANDS: &[&str] = &[
     CREATE_SUPPLIER,
     UPDATE_SUPPLIER,
     DELETE_SUPPLIER,
+    CREATE_USER,
+    UPDATE_USER,
+    RESET_USER_CREDENTIALS,
 ];
 
 pub const QUERIES: &[&str] = &[
@@ -55,4 +63,6 @@ pub const QUERIES: &[&str] = &[
     LIST_SUPPLIERS,
     LIST_AUDIT,
     GET_REPORTS,
+    LIST_USERS,
+    RESOLVE_IDENTITY,
 ];

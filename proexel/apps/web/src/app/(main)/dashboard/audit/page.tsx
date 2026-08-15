@@ -67,6 +67,9 @@ export default async function AuditPage({
     "Supplier deleted": "audit.supplierDeleted",
     "Valve photo added": "audit.photoAdded",
     "Valve photo removed": "audit.photoRemoved",
+    "User created": "admin.userCreated",
+    "User updated": "admin.userUpdated",
+    "User credentials reset": "admin.userCredentialsReset",
   };
   const operations: Record<string, TranslationKey> = {
     "proexel.valves.create": "audit.valveCreated",
@@ -86,6 +89,9 @@ export default async function AuditPage({
     "proexel.suppliers.delete": "audit.supplierDeleted",
     "proexel.valves.add_photo": "audit.photoAdded",
     "proexel.valves.delete_photo": "audit.photoRemoved",
+    "proexel.admin.users.create": "admin.userCreated",
+    "proexel.admin.users.update": "admin.userUpdated",
+    "proexel.admin.users.reset_credentials": "admin.userCredentialsReset",
   };
   const aggregates: Record<string, TranslationKey> = {
     valve: "nav.valves",
@@ -95,6 +101,7 @@ export default async function AuditPage({
     restock_request: "purchasing.requests",
     stock_item: "stock.items",
     supplier: "nav.suppliers",
+    user_account: "admin.users",
   };
   return (
     <div>

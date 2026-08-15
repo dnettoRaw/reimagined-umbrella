@@ -29,7 +29,8 @@ npm run build
 
 - Confirm `PROEXEL_SESSION_SECRET` is visible to the Next.js process and is at
   least 32 characters.
-- Confirm `PROEXEL_AUTH_USERS` is valid JSON and contains a valid scrypt record.
+- On first boot, confirm `PROEXEL_AUTH_USERS` contains a valid active admin; on
+  later boots, verify canonical state contains at least one active account.
 - Restart Next.js after changing its environment.
 - Do not place these variables in browser-side environment files.
 
@@ -39,6 +40,9 @@ npm run build
 - Confirm the hash is exactly `scrypt$salt$hex` and was generated with the same
   password and salt.
 - The password must contain at least eight characters.
+- A PIN must contain only 4 to 8 digits and must have been configured separately.
+- Confirm the account is active. Role/status/credential changes intentionally
+  invalidate existing sessions.
 - Five failures from one forwarded address lock that address for 15 minutes in
   the current Next.js process. Restarting only to bypass a production lockout is
   not an approved response; investigate the client and proxy first.

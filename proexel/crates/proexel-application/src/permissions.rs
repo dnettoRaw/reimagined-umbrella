@@ -29,7 +29,7 @@ pub fn can(role: Role, permission: &str) -> bool {
         "supplier.read" | "supplier.create_update_delete" => matches!(role, Role::Admin),
         "report.read" => matches!(role, Role::Admin | Role::Chefe),
         "audit.read" => matches!(role, Role::Admin | Role::Chefe),
-        "admin.manage" => matches!(role, Role::Admin),
+        "admin.manage" | "admin.users.manage" => matches!(role, Role::Admin),
         _ => false,
     }
 }

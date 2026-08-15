@@ -87,7 +87,7 @@ mv "${STATE}.restore" "$STATE"
 - The service starts without `storage_decode_failed`.
 - The health endpoint returns success.
 - `schema_version` is the expected value.
-- Valve, maintenance, order, stock, supplier and audit counts are plausible.
+- User, valve, maintenance, order, stock, supplier and audit counts are plausible.
 - A read-only UI smoke test succeeds for an authorized role.
 - A controlled write creates exactly one audit event and survives service
   restart.
@@ -101,9 +101,9 @@ mv "${STATE}.restore" "$STATE"
   a business action twice.
 - State and attachments must share one consistency point. Orphaned files are
   harmless but missing referenced files break photo/signature viewing.
-- User configuration lives in `PROEXEL_AUTH_USERS`, not the state file. Back up
-  deployment secrets through the platform secret-management procedure, never
-  in the same broadly accessible archive.
+- User accounts and credential hashes are canonical state. Encrypt backups and
+  restrict them as credential material. `PROEXEL_AUTH_USERS` is only an initial
+  seed and must not overwrite restored accounts.
 
 ## Backup test cadence
 

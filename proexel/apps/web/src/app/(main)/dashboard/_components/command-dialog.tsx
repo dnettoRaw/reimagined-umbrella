@@ -24,7 +24,7 @@ import { useI18n } from "@/lib/i18n/provider";
 export interface CommandField {
   name: string;
   label: string;
-  type?: "text" | "number" | "date" | "email" | "url" | "textarea" | "select" | "checkbox" | "hidden";
+  type?: "text" | "password" | "number" | "date" | "email" | "url" | "textarea" | "select" | "checkbox" | "hidden";
   required?: boolean;
   placeholder?: string;
   options?: Array<{ label: string; value: string }>;
@@ -43,7 +43,7 @@ export function CommandDialog({
   readonly title: string;
   readonly description: string;
   readonly endpoint: string;
-  readonly method?: "POST" | "PATCH";
+  readonly method?: "POST" | "PATCH" | "PUT";
   readonly fields: CommandField[];
 }) {
   const router = useRouter();

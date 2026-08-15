@@ -23,8 +23,9 @@ token per AppCore capability, starts the Rust service, and starts Next.js:
 ```
 
 The launcher prints a one-time local administrator login. Open
-`http://localhost:3000/auth/login`. Configure `PROEXEL_AUTH_USERS` to exercise
-the `admin`, `chefe`, `compras`, and `tecnico` roles. Local canonical state is
+`http://localhost:3000/auth/login`. `PROEXEL_AUTH_USERS` seeds accounts only when
+canonical user state is empty; use **Users and access** afterward to create,
+assign, disable and reset password/PIN credentials for the four roles. Local canonical state is
 persisted at
 `proexel/apps/service/target/runtime/storage/proexel-state-v1.json`.
 

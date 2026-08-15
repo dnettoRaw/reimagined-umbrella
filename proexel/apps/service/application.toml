@@ -152,6 +152,30 @@ requires_leader = false
 idempotency_required = true
 
 [[capabilities]]
+id = "proexel.admin.users.create"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.admin.users.update"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.admin.users.reset_credentials"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
 id = "proexel.overview.get"
 version = "1"
 mode = "query"
@@ -217,6 +241,22 @@ idempotency_required = false
 
 [[capabilities]]
 id = "proexel.reports.get"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.admin.users.list"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.identity.resolve"
 version = "1"
 mode = "query"
 visibility = "local"

@@ -156,6 +156,20 @@ pub struct ValvePhoto {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UserAccount {
+    pub id: String,
+    pub email: String,
+    pub name: String,
+    pub role: String,
+    pub password_hash: String,
+    pub pin_hash: Option<String>,
+    pub active: bool,
+    pub auth_version: u64,
+    pub created_at_ms: u64,
+    pub updated_at_ms: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuditEvent {
     pub id: String,
     pub actor: String,

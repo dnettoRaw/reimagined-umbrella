@@ -28,7 +28,8 @@ npm run dev
 
 ## Responsibilities
 
-- Authenticate configured users with server-side scrypt verification.
+- Authenticate canonical active users with server-side scrypt password/PIN verification.
+- Manage users, roles, status and credential resets through audited admin capabilities.
 - Store signed `HttpOnly`, `SameSite=Strict` sessions.
 - Enforce route and command access using the application RBAC matrix.
 - Call AppCore through scoped command/query tokens held only on the server.

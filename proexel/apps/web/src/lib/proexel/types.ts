@@ -1,6 +1,23 @@
 export type MaintenanceHealth = "ok" | "warning" | "critical";
 export type Role = "admin" | "chefe" | "compras" | "tecnico";
 
+export interface UserAccount {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  active: boolean;
+  has_pin: boolean;
+  auth_version: number;
+  created_at_ms: number;
+  updated_at_ms: number;
+}
+
+export interface IdentityRecord extends Omit<UserAccount, "has_pin"> {
+  password_hash: string;
+  pin_hash?: string | null;
+}
+
 export interface Valve {
   id: string;
   tag: string;

@@ -2,17 +2,9 @@ import { NextResponse } from "next/server";
 
 import { getI18n } from "@/lib/i18n/server";
 import { SESSION_COOKIE, signSession } from "@/lib/proexel/auth-token";
-import type { Role } from "@/lib/proexel/types";
+import { resolveIdentity } from "@/lib/proexel/identity-service";
 
 import { scryptSync, timingSafeEqual } from "node:crypto";
-
-interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  role: Role;
-  password_hash: string;
-}
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 15 * 60 * 1000;
@@ -34,9 +26,11 @@ export async function POST(request: Request) {
   } | null;
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body?.password === "string" ? body.password : "";
-  const users = readUsers();
-  const user = users.find((candidate) => candidate.email.toLowerCase() === email);
-  if (!user || !verifyPassword(password, user.password_hash)) {
+  const user = await resolveIdentity({ email });
+  if (user === undefined) {
+    return NextResponse.json({ error: t("login.notConfigured") }, { status: 503 });
+  }
+  if (!user?.active || !verifyCredential(password, user.password_hash, user.pin_hash)) {
     const active = rate && rate.resetAt > now ? rate : { count: 0, resetAt: now + WINDOW_MS };
     attempts.set(client, { ...active, count: active.count + 1 });
     return NextResponse.json({ error: t("login.invalidCredentials") }, { status: 401 });
@@ -49,7 +43,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: t("login.notConfigured") }, { status: 503 });
   }
   const token = await signSession(
-    { sub: user.id, email: user.email, name: user.name, role: user.role, exp: now + maxAge * 1000 },
+    {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      ver: user.auth_version,
+      exp: now + maxAge * 1000,
+    },
     secret,
   );
   const requestedNext = typeof body?.next === "string" ? body.next : "";
@@ -65,21 +66,19 @@ export async function POST(request: Request) {
   return response;
 }
 
-function readUsers(): AuthUser[] {
-  try {
-    const value = JSON.parse(process.env.PROEXEL_AUTH_USERS ?? "[]") as AuthUser[];
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
+function verifyCredential(value: string, passwordHash: string, pinHash?: string | null): boolean {
+  return (
+    (value.length >= 8 && verifyHash(value, passwordHash)) || (/^\d{4,8}$/.test(value) && verifyHash(value, pinHash))
+  );
 }
 
-function verifyPassword(password: string, encoded: string): boolean {
+function verifyHash(value: string, encoded?: string | null): boolean {
+  if (!encoded) return false;
   const [algorithm, salt, expectedHex, extra] = encoded.split("$");
-  if (algorithm !== "scrypt" || !salt || !expectedHex || extra || password.length < 8) return false;
+  if (algorithm !== "scrypt" || !salt || !expectedHex || extra) return false;
   try {
     const expected = Buffer.from(expectedHex, "hex");
-    const actual = scryptSync(password, salt, expected.length);
+    const actual = scryptSync(value, salt, expected.length);
     return expected.length > 0 && timingSafeEqual(expected, actual);
   } catch {
     return false;

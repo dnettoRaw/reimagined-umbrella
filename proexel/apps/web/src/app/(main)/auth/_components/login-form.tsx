@@ -14,7 +14,7 @@ export function LoginForm({ next }: { readonly next?: string }) {
   const { t } = useI18n();
   const formSchema = z.object({
     email: z.string().email({ message: t("login.emailInvalid") }),
-    password: z.string().min(8, { message: t("login.passwordInvalid") }),
+    password: z.string().min(4, { message: t("login.passwordInvalid") }),
     remember: z.boolean().optional(),
   });
   const form = useForm<z.infer<typeof formSchema>>({

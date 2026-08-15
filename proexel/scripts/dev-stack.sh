@@ -10,6 +10,7 @@ SERVICE_BIN="$ROOT_DIR/proexel/target/debug/proexel-service"
 DEV_TTL_MS="${PROEXEL_DEV_TTL_MS:-10800000}"
 WEB_PORT="${PROEXEL_WEB_PORT:-3000}"
 SERVICE_URL="${PROEXEL_SERVICE_URL:-http://127.0.0.1:39400}"
+DATA_FILE="${PROEXEL_DATA_FILE:-$ROOT_DIR/proexel/apps/service/target/runtime/storage/proexel-state-v1.json}"
 
 cargo build --quiet --manifest-path "$APPCORE_MANIFEST" -p appcore-bin --bin appcore-bin
 cargo build --quiet --manifest-path "$ROOT_DIR/proexel/Cargo.toml" -p proexel-service
@@ -26,12 +27,15 @@ commands=(
   proexel.purchasing.delete_restock_request
   proexel.stock.adjust proexel.stock.upsert_item proexel.stock.delete_item
   proexel.suppliers.create proexel.suppliers.update proexel.suppliers.delete
+  proexel.admin.users.create proexel.admin.users.update
+  proexel.admin.users.reset_credentials
 )
 queries=(
   proexel.overview.get proexel.valves.list proexel.maintenance.list
   proexel.orders.list proexel.purchasing.list_restock_requests
   proexel.stock.list proexel.suppliers.list proexel.audit.list
   proexel.reports.get
+  proexel.admin.users.list proexel.identity.resolve
 )
 
 tokens="{"
@@ -50,12 +54,16 @@ tokens+="}"
 
 export PROEXEL_SESSION_SECRET="${PROEXEL_SESSION_SECRET:-$(openssl rand -hex 32)}"
 if [[ -z "${PROEXEL_AUTH_USERS:-}" ]]; then
-  local_email="admin@proexel.local"
-  local_password="$(openssl rand -hex 12)"
-  local_salt="$(openssl rand -hex 16)"
-  local_hash="$(node -e 'const {scryptSync}=require("node:crypto"); process.stdout.write(scryptSync(process.argv[1], process.argv[2], 32).toString("hex"))' "$local_password" "$local_salt")"
-  export PROEXEL_AUTH_USERS="[{\"id\":\"local-admin\",\"email\":\"$local_email\",\"name\":\"Administrador local\",\"role\":\"admin\",\"password_hash\":\"scrypt\$$local_salt\$$local_hash\"}]"
-  printf 'PROEXEL local login: %s / %s\n' "$local_email" "$local_password"
+  if [[ -f "$DATA_FILE" ]] && node -e 'const fs=require("node:fs"); const state=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.exit(Array.isArray(state.user_accounts)&&state.user_accounts.length ? 0 : 1)' "$DATA_FILE"; then
+    printf 'PROEXEL identities: using existing canonical accounts\n'
+  else
+    local_email="admin@proexel.local"
+    local_password="$(openssl rand -hex 12)"
+    local_salt="$(openssl rand -hex 16)"
+    local_hash="$(node -e 'const {scryptSync}=require("node:crypto"); process.stdout.write(scryptSync(process.argv[1], process.argv[2], 32).toString("hex"))' "$local_password" "$local_salt")"
+    export PROEXEL_AUTH_USERS="[{\"id\":\"local-admin\",\"email\":\"$local_email\",\"name\":\"Administrador local\",\"role\":\"admin\",\"password_hash\":\"scrypt\$$local_salt\$$local_hash\"}]"
+    printf 'PROEXEL local login: %s / %s\n' "$local_email" "$local_password"
+  fi
 fi
 
 cleanup() {

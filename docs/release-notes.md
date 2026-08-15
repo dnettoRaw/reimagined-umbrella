@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added canonical user management for creation, four-role assignment,
+  activation/deactivation, scrypt password/PIN reset and immediate session
+  invalidation.
+- Added redacted user audit history and a server-only identity resolution
+  capability; credential hashes never appear in list or audit responses.
 - Added stable-ID valve photo upload/removal and protected graphical maintenance signatures.
 - Added valve detail/edit/timeline, production filters, facets, sorting and pagination.
 - Added audited delete policies, canonical order priorities, schedule criticality,
@@ -35,6 +40,6 @@
   identity.
 - Removed dashboard template demo routes and legacy runtime dependencies.
 
-Known release blockers are external production identity/cutover evidence, real
-legacy-export reconciliation, source attachment transfer, target failure drills,
+Known release blockers are real legacy-export reconciliation, source attachment
+transfer, target failure drills,
 and distributed sync/rate limiting only if that deployment topology is selected.

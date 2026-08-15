@@ -14,6 +14,7 @@ import type {
   ServiceOrder,
   StockItem,
   Supplier,
+  UserAccount,
   Valve,
   ValveListResult,
 } from "./types";
@@ -36,6 +37,9 @@ const COMMAND_PERMISSIONS: Record<string, string> = {
   "proexel.suppliers.create": "supplier.create_update_delete",
   "proexel.suppliers.update": "supplier.create_update_delete",
   "proexel.suppliers.delete": "supplier.create_update_delete",
+  "proexel.admin.users.create": "admin.users.manage",
+  "proexel.admin.users.update": "admin.users.manage",
+  "proexel.admin.users.reset_credentials": "admin.users.manage",
 };
 
 const QUERY_PERMISSIONS: Record<string, string> = {
@@ -47,6 +51,7 @@ const QUERY_PERMISSIONS: Record<string, string> = {
   "proexel.suppliers.list": "supplier.read",
   "proexel.audit.list": "audit.read",
   "proexel.reports.get": "report.read",
+  "proexel.admin.users.list": "admin.users.manage",
 };
 
 const SERVICE_ERROR_KEYS: Record<string, TranslationKey> = {
@@ -74,6 +79,13 @@ const SERVICE_ERROR_KEYS: Record<string, TranslationKey> = {
   signature_required: "service.signatureRequired",
   supplier_email_invalid: "service.supplierEmailInvalid",
   supplier_website_invalid: "service.supplierWebsiteInvalid",
+  user_not_found: "service.userNotFound",
+  user_email_invalid: "service.userEmailInvalid",
+  user_email_already_exists: "service.userEmailExists",
+  password_hash_invalid: "service.passwordInvalid",
+  pin_hash_invalid: "service.pinInvalid",
+  credential_change_required: "service.credentialRequired",
+  last_active_admin_required: "service.lastAdminRequired",
 };
 
 const EMPTY_OVERVIEW: OverviewResult = {
@@ -220,6 +232,10 @@ export async function listAudit(payload: Record<string, unknown> = {}): Promise<
   };
   const result = await query("proexel.audit.list", fallback, payload);
   return { ...result, source: result === fallback ? "unavailable" : "appcore" };
+}
+
+export async function listUsers(): Promise<ListResult<UserAccount>> {
+  return query("proexel.admin.users.list", emptyList<UserAccount>());
 }
 
 export async function getReports(): Promise<ReportResult> {

@@ -84,6 +84,7 @@ denied by default.
 | `supplier.read`, `supplier.create_update_delete` | Allow | Deny | Deny | Deny |
 | `report.read`, `audit.read` | Allow | Allow | Deny | Deny |
 | `admin.manage` | Allow | Deny | Deny | Deny |
+| `admin.users.manage` | Allow | Deny | Deny | Deny |
 
 Every listed write action has a registered capability. Destructive commands are
 audited and enforce retention rules: completed orders, approved restocks and
@@ -102,3 +103,5 @@ non-empty stock items cannot be deleted.
 - Successful writes persist semantic audit rows. Denied/failed commands are
   emitted to redacted operational logs, not canonical audit, to prevent
   unauthenticated traffic from growing business state.
+- User audit snapshots contain identity, role, status, PIN presence and auth
+  version only. Password hashes and PIN hashes are always redacted.

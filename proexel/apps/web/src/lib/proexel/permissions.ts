@@ -21,6 +21,7 @@ export function can(permission: string, role: Role): boolean {
     case "supplier.read":
     case "supplier.create_update_delete":
     case "admin.manage":
+    case "admin.users.manage":
       return role === "admin";
     case "restock.create_suggestion":
       return role === "tecnico";
