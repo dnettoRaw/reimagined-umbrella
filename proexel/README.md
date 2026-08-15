@@ -47,7 +47,8 @@ Pushes and pull requests targeting the `release` branch run the release workflow
 in `.github/workflows/release-build.yml`. It validates Rust and web code, builds
 optimized Linux binaries and uploads standalone Rust and Next.js artifacts for
 30 days. A successful push to `release` also creates a GitHub Release tagged as
-`release-<run number>`, marks it as Latest and attaches both build packages.
+`release-<run number>`, marks it as Latest and attaches the standalone web build
+plus Rust executable packages for Linux x64, Windows x64 and macOS ARM64.
 Pull requests and manual runs validate and retain artifacts without publishing a
 GitHub Release.
 

@@ -22,9 +22,25 @@ env:
 
 jobs:
   rust:
-    name: Rust release
-    runs-on: ubuntu-latest
+    name: Rust release (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x64
+            executable_suffix: ""
+            package: proexel-rust-linux-x64.tar.gz
+          - os: windows-latest
+            platform: windows-x64
+            executable_suffix: .exe
+            package: proexel-rust-windows-x64.zip
+          - os: macos-15
+            platform: macos-arm64
+            executable_suffix: ""
+            package: proexel-rust-macos-arm64.tar.gz
 
     steps:
       - name: Check out repository
@@ -34,9 +50,11 @@ jobs:
 
       - name: Resolve pinned AppCore revision
         id: appcore
+        shell: bash
         run: echo "revision=$(git rev-parse HEAD:core/AppCore-Runtime)" >> "$GITHUB_OUTPUT"
 
       - name: Require AppCore repository token
+        shell: bash
         env:
           APPCORE_REPOSITORY_TOKEN: ${{ secrets.APPCORE_REPOSITORY_TOKEN }}
         run: |
@@ -67,6 +85,7 @@ jobs:
             core/AppCore-Runtime -> target
 
       - name: Check Rust structure
+        shell: bash
         run: ./proexel/scripts/check-rust-structure.sh
 
       - name: Check formatting
@@ -85,19 +104,32 @@ jobs:
         working-directory: proexel
         run: cargo build --workspace --release --locked
 
-      - name: Package Rust binaries
+      - name: Stage Rust binaries
         working-directory: proexel
+        shell: bash
         run: |
           mkdir -p release/rust
-          cp target/release/proexel-service release/rust/
-          cp target/release/proexel-migrate release/rust/
-          tar -czf release/proexel-rust-linux-x64.tar.gz -C release/rust .
+          cp "target/release/proexel-service${{ matrix.executable_suffix }}" release/rust/
+          cp "target/release/proexel-migrate${{ matrix.executable_suffix }}" release/rust/
+
+      - name: Package Unix Rust binaries
+        if: runner.os != 'Windows'
+        working-directory: proexel
+        shell: bash
+        run: |
+          tar -czf "release/${{ matrix.package }}" -C release/rust .
+
+      - name: Package Windows Rust binaries
+        if: runner.os == 'Windows'
+        working-directory: proexel
+        shell: pwsh
+        run: Compress-Archive -Path release/rust/* -DestinationPath "release/${{ matrix.package }}"
 
       - name: Upload Rust artifact
         uses: actions/upload-artifact@v6
         with:
-          name: proexel-rust-linux-x64-${{ github.sha }}
-          path: proexel/release/proexel-rust-linux-x64.tar.gz
+          name: proexel-rust-${{ matrix.platform }}-${{ github.sha }}
+          path: proexel/release/${{ matrix.package }}
           if-no-files-found: error
           retention-days: 30
 
@@ -177,10 +209,10 @@ jobs:
           RELEASE_TAG: release-${{ github.run_number }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release-assets/*.tar.gz --clobber
+            gh release upload "$RELEASE_TAG" release-assets/* --clobber
             gh release edit "$RELEASE_TAG" --latest
           else
-            gh release create "$RELEASE_TAG" release-assets/*.tar.gz \
+            gh release create "$RELEASE_TAG" release-assets/* \
               --target "$GITHUB_SHA" \
               --title "PROEXEL release build #${GITHUB_RUN_NUMBER}" \
               --generate-notes \
