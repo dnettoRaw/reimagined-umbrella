@@ -3,11 +3,13 @@
 import * as React from "react";
 
 import { format, subDays } from "date-fns";
+import { enGB, es, fr, pt } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useI18n } from "@/lib/i18n/provider";
 
 interface DateRangePickerProps {
   value?: DateRange;
@@ -15,6 +17,8 @@ interface DateRangePickerProps {
 }
 
 export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
+  const { locale, t } = useI18n();
+  const dateLocale = { pt, en: enGB, es, fr }[locale];
   const [open, setOpen] = React.useState(false);
   const [internalDateRange, setInternalDateRange] = React.useState<DateRange | undefined>(() => {
     const to = new Date();
@@ -36,9 +40,9 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
         <Button variant="outline" id="date" className="font-normal">
           {dateRange?.from
             ? dateRange.to
-              ? `${format(dateRange.from, "d MMM yyyy")} - ${format(dateRange.to, "d MMM yyyy")}`
-              : format(dateRange.from, "d MMM yyyy")
-            : "Select date"}
+              ? `${format(dateRange.from, "d MMM yyyy", { locale: dateLocale })} - ${format(dateRange.to, "d MMM yyyy", { locale: dateLocale })}`
+              : format(dateRange.from, "d MMM yyyy", { locale: dateLocale })
+            : t("common.selectDate")}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto overflow-hidden p-0" align="end">
@@ -48,6 +52,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
           selected={dateRange}
           onSelect={handleDateChange}
           numberOfMonths={2}
+          locale={dateLocale}
         />
       </PopoverContent>
     </Popover>

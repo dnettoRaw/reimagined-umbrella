@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/lib/i18n/provider";
 
 export function CommandButton({
   endpoint,
@@ -20,6 +21,7 @@ export function CommandButton({
   readonly variant?: "default" | "outline" | "destructive" | "secondary" | "ghost";
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [pending, setPending] = useState(false);
 
   async function run() {
@@ -31,11 +33,11 @@ export function CommandButton({
         body: JSON.stringify(data),
       });
       const result = (await response.json()) as { accepted?: boolean; message?: string };
-      if (!response.ok || !result.accepted) throw new Error(result.message ?? "Operação rejeitada.");
-      toast.success("Status atualizado");
+      if (!response.ok || !result.accepted) throw new Error(result.message ?? t("command.rejected"));
+      toast.success(t("command.statusUpdated"));
       router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar.");
+      toast.error(error instanceof Error ? error.message : t("command.updateFailed"));
     } finally {
       setPending(false);
     }

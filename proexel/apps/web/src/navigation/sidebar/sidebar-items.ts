@@ -13,10 +13,11 @@ import {
   Wrench,
 } from "lucide-react";
 
+import type { TranslationKey } from "@/lib/i18n/messages";
 import type { Role } from "@/lib/proexel/types";
 
 export interface NavSubItem {
-  title: string;
+  title: TranslationKey;
   url: string;
   icon?: LucideIcon;
   comingSoon?: boolean;
@@ -25,7 +26,7 @@ export interface NavSubItem {
 }
 
 export interface NavMainItem {
-  title: string;
+  title: TranslationKey;
   url: string;
   icon?: LucideIcon;
   subItems?: NavSubItem[];
@@ -37,34 +38,34 @@ export interface NavMainItem {
 
 export interface NavGroup {
   id: number;
-  label?: string;
+  label?: TranslationKey;
   items: NavMainItem[];
 }
 
 export const sidebarItems: NavGroup[] = [
   {
     id: 1,
-    label: "Operação",
+    label: "nav.operation",
     items: [
       {
-        title: "Visão geral",
+        title: "nav.overview",
         url: "/dashboard/overview",
         icon: LayoutDashboard,
       },
       {
-        title: "Válvulas",
+        title: "nav.valves",
         url: "/dashboard/valves",
         icon: Activity,
         roles: ["admin", "chefe", "tecnico"],
       },
       {
-        title: "Manutenção",
+        title: "nav.maintenance",
         url: "/dashboard/maintenance",
         icon: Wrench,
         roles: ["admin", "chefe", "tecnico"],
       },
       {
-        title: "Ordens de serviço",
+        title: "nav.orders",
         url: "/dashboard/orders",
         icon: Calendar,
         roles: ["admin", "chefe", "tecnico"],
@@ -73,22 +74,22 @@ export const sidebarItems: NavGroup[] = [
   },
   {
     id: 2,
-    label: "Suprimentos",
+    label: "nav.supplies",
     items: [
       {
-        title: "Estoque",
+        title: "nav.stock",
         url: "/dashboard/stock",
         icon: PackageSearch,
         roles: ["admin", "chefe", "compras"],
       },
       {
-        title: "Compras",
+        title: "nav.purchasing",
         url: "/dashboard/purchasing",
         icon: ShoppingCart,
         roles: ["admin", "chefe", "compras", "tecnico"],
       },
       {
-        title: "Fornecedores",
+        title: "nav.suppliers",
         url: "/dashboard/suppliers",
         icon: Building2,
         roles: ["admin"],
@@ -97,28 +98,28 @@ export const sidebarItems: NavGroup[] = [
   },
   {
     id: 3,
-    label: "Controle",
+    label: "nav.control",
     items: [
       {
-        title: "Histórico / Auditoria",
+        title: "nav.audit",
         url: "/dashboard/audit",
         icon: History,
         roles: ["admin", "chefe"],
       },
       {
-        title: "Relatórios",
+        title: "nav.reports",
         url: "/dashboard/reports",
         icon: BarChart3,
         roles: ["admin", "chefe"],
       },
       {
-        title: "Administração",
+        title: "nav.admin",
         url: "/dashboard/admin",
         icon: ShieldCheck,
         roles: ["admin"],
       },
       {
-        title: "Configurações",
+        title: "nav.settings",
         url: "/dashboard/settings",
         icon: Settings,
       },

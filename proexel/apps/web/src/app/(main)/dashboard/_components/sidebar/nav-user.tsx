@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
+import { useI18n } from "@/lib/i18n/provider";
 import { getInitials } from "@/lib/utils";
 
 export function NavUser({
@@ -30,6 +31,7 @@ export function NavUser({
   };
 }) {
   const { isMobile } = useSidebar();
+  const { t } = useI18n();
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function logout() {
@@ -53,7 +55,7 @@ export function NavUser({
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-muted-foreground text-xs">{user.role}</span>
+                <span className="truncate text-muted-foreground text-xs">{t(`role.${user.role}`)}</span>
               </div>
               <EllipsisVertical className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -81,20 +83,20 @@ export function NavUser({
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/settings">
                   <CircleUser />
-                  Perfil local
+                  {t("user.localProfile")}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/admin">
                   <ShieldCheck />
-                  Permissões
+                  {t("user.permissions")}
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={logout} disabled={loggingOut}>
               <LogOut />
-              {loggingOut ? "A encerrar…" : "Encerrar sessão"}
+              {loggingOut ? t("user.loggingOut") : t("user.logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

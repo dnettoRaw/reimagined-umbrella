@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getI18n } from "@/lib/i18n/server";
 import { requirePermission } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
 import { listStock } from "@/lib/proexel/service";
@@ -15,36 +16,35 @@ import { ProexelEmptyState } from "../_components/proexel-empty-state";
 export const dynamic = "force-dynamic";
 
 export default async function StockPage() {
-  const { role } = await requirePermission("stock.read");
-  const stock = await listStock();
+  const [{ role }, stock, { t }] = await Promise.all([requirePermission("stock.read"), listStock(), getI18n()]);
   return (
     <div>
       <PageHeader
-        title="Estoque"
-        description="Saldos, mínimos e rastreabilidade de ajustes."
+        title={t("nav.stock")}
+        description={t("stock.description")}
         action={
           can("stock.add_or_increment", role) ? (
             <CommandDialog
               trigger={
                 <Button>
                   <Plus />
-                  Novo item
+                  {t("stock.new")}
                 </Button>
               }
-              title="Cadastrar item"
-              description="A referência é única e normalizada."
+              title={t("stock.create")}
+              description={t("stock.createDescription")}
               endpoint="/api/proexel/stock"
               fields={[
-                { name: "reference", label: "Referência", required: true },
+                { name: "reference", label: t("stock.reference"), required: true },
                 {
                   name: "minimum_quantity",
-                  label: "Quantidade mínima",
+                  label: t("stock.minimumQuantity"),
                   type: "number",
                   required: true,
                   defaultValue: 0,
                 },
-                { name: "manufacturer", label: "Fabricante" },
-                { name: "location", label: "Localização" },
+                { name: "manufacturer", label: t("common.manufacturer") },
+                { name: "location", label: t("stock.location") },
               ]}
             />
           ) : null
@@ -52,30 +52,32 @@ export default async function StockPage() {
       />
       <Card>
         <CardHeader>
-          <CardTitle>Itens de estoque</CardTitle>
+          <CardTitle>{t("stock.items")}</CardTitle>
           <CardDescription>
-            {stock.items.filter((item) => item.quantity <= item.minimum_quantity).length} abaixo ou no mínimo
+            {t("stock.belowMinimum", {
+              count: stock.items.filter((item) => item.quantity <= item.minimum_quantity).length,
+            })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {stock.items.length === 0 ? (
             <ProexelEmptyState
               icon={PackageSearch}
-              title="Estoque vazio"
-              description="Itens de kit criados por válvulas também aparecem aqui."
+              title={t("stock.empty")}
+              description={t("stock.emptyDescription")}
             />
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Referência</TableHead>
-                    <TableHead>Fabricante</TableHead>
-                    <TableHead>Localização</TableHead>
-                    <TableHead>Saldo</TableHead>
-                    <TableHead>Mínimo</TableHead>
-                    <TableHead>Condição</TableHead>
-                    <TableHead className="text-right">Ajustar</TableHead>
+                    <TableHead>{t("stock.reference")}</TableHead>
+                    <TableHead>{t("common.manufacturer")}</TableHead>
+                    <TableHead>{t("stock.location")}</TableHead>
+                    <TableHead>{t("stock.balance")}</TableHead>
+                    <TableHead>{t("stock.minimum")}</TableHead>
+                    <TableHead>{t("common.health")}</TableHead>
+                    <TableHead className="text-right">{t("common.adjust")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -88,7 +90,7 @@ export default async function StockPage() {
                       <TableCell>{item.minimum_quantity}</TableCell>
                       <TableCell>
                         <Badge variant={item.quantity <= item.minimum_quantity ? "destructive" : "outline"}>
-                          {item.quantity <= item.minimum_quantity ? "Repor" : "Normal"}
+                          {item.quantity <= item.minimum_quantity ? t("stock.restock") : t("orders.normal")}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -96,17 +98,17 @@ export default async function StockPage() {
                           <CommandDialog
                             trigger={
                               <Button size="sm" variant="outline">
-                                Ajustar
+                                {t("common.adjust")}
                               </Button>
                             }
-                            title={`Ajustar ${item.reference}`}
-                            description={`Saldo atual: ${item.quantity}. Use valor negativo para saída.`}
+                            title={t("stock.adjustTitle", { reference: item.reference })}
+                            description={t("stock.adjustDescription", { quantity: item.quantity })}
                             endpoint="/api/proexel/stock"
                             method="PATCH"
                             fields={[
                               { name: "id", label: "ID", type: "hidden", defaultValue: item.id, required: true },
-                              { name: "delta", label: "Variação", type: "number", required: true },
-                              { name: "reason", label: "Motivo", type: "textarea", required: true },
+                              { name: "delta", label: t("stock.variation"), type: "number", required: true },
+                              { name: "reason", label: t("stock.reason"), type: "textarea", required: true },
                             ]}
                           />
                         ) : null}

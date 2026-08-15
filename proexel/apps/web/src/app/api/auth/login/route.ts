@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getI18n } from "@/lib/i18n/server";
 import { SESSION_COOKIE, signSession } from "@/lib/proexel/auth-token";
 import type { Role } from "@/lib/proexel/types";
 
@@ -18,11 +19,12 @@ const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 
 export async function POST(request: Request) {
+  const { t } = await getI18n();
   const client = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
   const now = Date.now();
   const rate = attempts.get(client);
   if (rate && rate.resetAt > now && rate.count >= MAX_ATTEMPTS) {
-    return NextResponse.json({ error: "Muitas tentativas. Tente novamente mais tarde." }, { status: 429 });
+    return NextResponse.json({ error: t("login.tooMany") }, { status: 429 });
   }
   const body = (await request.json().catch(() => null)) as {
     email?: unknown;
@@ -37,14 +39,14 @@ export async function POST(request: Request) {
   if (!user || !verifyPassword(password, user.password_hash)) {
     const active = rate && rate.resetAt > now ? rate : { count: 0, resetAt: now + WINDOW_MS };
     attempts.set(client, { ...active, count: active.count + 1 });
-    return NextResponse.json({ error: "Email ou palavra-passe inválidos." }, { status: 401 });
+    return NextResponse.json({ error: t("login.invalidCredentials") }, { status: 401 });
   }
   attempts.delete(client);
   const remember = body?.remember === true;
   const maxAge = remember ? 30 * 24 * 60 * 60 : 8 * 60 * 60;
   const secret = process.env.PROEXEL_SESSION_SECRET;
   if (!secret || secret.length < 32) {
-    return NextResponse.json({ error: "Autenticação não configurada." }, { status: 503 });
+    return NextResponse.json({ error: t("login.notConfigured") }, { status: 503 });
   }
   const token = await signSession(
     { sub: user.id, email: user.email, name: user.name, role: user.role, exp: now + maxAge * 1000 },

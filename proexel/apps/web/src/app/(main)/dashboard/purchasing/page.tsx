@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getI18n } from "@/lib/i18n/server";
 import { requireSession } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
 import { listRestockRequests } from "@/lib/proexel/service";
@@ -16,28 +17,27 @@ import { ProexelEmptyState } from "../_components/proexel-empty-state";
 export const dynamic = "force-dynamic";
 
 export default async function PurchasingPage() {
-  const { role } = await requireSession();
-  const requests = await listRestockRequests();
+  const [{ role }, requests, { t }] = await Promise.all([requireSession(), listRestockRequests(), getI18n()]);
   return (
     <div>
       <PageHeader
-        title="Compras e reposição"
-        description="Solicitações de reposição e decisão registrada por revisor."
+        title={t("purchasing.title")}
+        description={t("purchasing.description")}
         action={
           can("restock.create_suggestion", role) ? (
             <CommandDialog
               trigger={
                 <Button>
                   <Plus />
-                  Solicitar reposição
+                  {t("purchasing.request")}
                 </Button>
               }
-              title="Solicitar reposição"
-              description="A criação exige a permissão operacional de técnico."
+              title={t("purchasing.request")}
+              description={t("purchasing.requestDescription")}
               endpoint="/api/proexel/purchasing"
               fields={[
-                { name: "reference", label: "Referência", required: true },
-                { name: "reason", label: "Motivo", type: "textarea", required: true },
+                { name: "reference", label: t("stock.reference"), required: true },
+                { name: "reason", label: t("stock.reason"), type: "textarea", required: true },
               ]}
             />
           ) : null
@@ -45,29 +45,29 @@ export default async function PurchasingPage() {
       />
       <Card>
         <CardHeader>
-          <CardTitle>Solicitações</CardTitle>
+          <CardTitle>{t("purchasing.requests")}</CardTitle>
           <CardDescription>
-            {requests.items.filter((item) => item.status === "pending").length} pendente(s)
+            {t("purchasing.pendingCount", { count: requests.items.filter((item) => item.status === "pending").length })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {requests.items.length === 0 ? (
             <ProexelEmptyState
               icon={ShoppingCart}
-              title="Nenhuma solicitação"
-              description="As sugestões de reposição aparecerão nesta fila."
+              title={t("purchasing.none")}
+              description={t("purchasing.noneDescription")}
             />
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Referência</TableHead>
-                    <TableHead>Motivo</TableHead>
-                    <TableHead>Solicitante</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Revisor</TableHead>
-                    <TableHead className="text-right">Decisão</TableHead>
+                    <TableHead>{t("stock.reference")}</TableHead>
+                    <TableHead>{t("stock.reason")}</TableHead>
+                    <TableHead>{t("purchasing.requester")}</TableHead>
+                    <TableHead>{t("common.status")}</TableHead>
+                    <TableHead>{t("common.reviewer")}</TableHead>
+                    <TableHead className="text-right">{t("purchasing.decision")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -77,7 +77,16 @@ export default async function PurchasingPage() {
                       <TableCell className="max-w-80 whitespace-normal">{item.reason}</TableCell>
                       <TableCell>{item.requested_by}</TableCell>
                       <TableCell>
-                        <RequestStatus status={item.status} />
+                        <RequestStatus
+                          status={item.status}
+                          label={
+                            item.status === "pending"
+                              ? t("common.pending")
+                              : item.status === "approved"
+                                ? t("purchasing.approved")
+                                : t("purchasing.rejected")
+                          }
+                        />
                       </TableCell>
                       <TableCell>{item.reviewed_by ?? "-"}</TableCell>
                       <TableCell>
@@ -89,7 +98,7 @@ export default async function PurchasingPage() {
                                 data={{ id: item.id, status: "approved" }}
                               >
                                 <Check />
-                                Aprovar
+                                {t("common.approve")}
                               </CommandButton>
                               <CommandButton
                                 endpoint="/api/proexel/purchasing"
@@ -97,7 +106,7 @@ export default async function PurchasingPage() {
                                 variant="ghost"
                               >
                                 <X />
-                                Rejeitar
+                                {t("common.reject")}
                               </CommandButton>
                             </>
                           ) : null}
@@ -115,11 +124,16 @@ export default async function PurchasingPage() {
   );
 }
 
-function RequestStatus({ status }: { readonly status: "pending" | "approved" | "rejected" }) {
-  const labels = { pending: "Pendente", approved: "Aprovada", rejected: "Rejeitada" };
+function RequestStatus({
+  status,
+  label,
+}: {
+  readonly status: "pending" | "approved" | "rejected";
+  readonly label: string;
+}) {
   return (
     <Badge variant={status === "approved" ? "default" : status === "rejected" ? "destructive" : "secondary"}>
-      {labels[status]}
+      {label}
     </Badge>
   );
 }

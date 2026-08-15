@@ -6,23 +6,26 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { APP_CONFIG } from "@/config/app-config";
 import { fontVars } from "@/lib/fonts/registry";
+import { I18nProvider } from "@/lib/i18n/provider";
+import { getI18n, getLocale } from "@/lib/i18n/server";
 import { PREFERENCE_DEFAULTS } from "@/lib/preferences/preferences-config";
 import { ThemeBootScript } from "@/scripts/theme-boot";
 import { PreferencesStoreProvider } from "@/stores/preferences/preferences-provider";
 
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: APP_CONFIG.meta.title,
-  description: APP_CONFIG.meta.description,
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: APP_CONFIG.meta.title, description: t("app.description") };
+}
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const locale = await getLocale();
   const { theme_mode, theme_preset, content_layout, navbar_style, sidebar_variant, sidebar_collapsible, font } =
     PREFERENCE_DEFAULTS;
   return (
     <html
-      lang="pt"
+      lang={locale}
       data-theme-mode={theme_mode}
       data-theme-preset={theme_preset}
       data-content-layout={content_layout}
@@ -37,18 +40,20 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         <ThemeBootScript />
       </head>
       <body className={`${fontVars} min-h-screen antialiased`}>
-        <TooltipProvider>
-          <PreferencesStoreProvider
-            themeMode={theme_mode}
-            themePreset={theme_preset}
-            contentLayout={content_layout}
-            navbarStyle={navbar_style}
-            font={font}
-          >
-            {children}
-            <Toaster />
-          </PreferencesStoreProvider>
-        </TooltipProvider>
+        <I18nProvider locale={locale}>
+          <TooltipProvider>
+            <PreferencesStoreProvider
+              themeMode={theme_mode}
+              themePreset={theme_preset}
+              contentLayout={content_layout}
+              navbarStyle={navbar_style}
+              font={font}
+            >
+              {children}
+              <Toaster />
+            </PreferencesStoreProvider>
+          </TooltipProvider>
+        </I18nProvider>
       </body>
     </html>
   );

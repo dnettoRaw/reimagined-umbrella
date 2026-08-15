@@ -18,13 +18,15 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import type { TranslationKey } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/provider";
 import type { Role } from "@/lib/proexel/types";
 import type { NavMainItem } from "@/navigation/sidebar/sidebar-items";
 import { sidebarItems } from "@/navigation/sidebar/sidebar-items";
 
 type SearchItem = {
-  group: string;
-  label: string;
+  group: TranslationKey;
+  label: TranslationKey;
   url: string;
   icon?: NavMainItem["icon"];
   disabled?: boolean;
@@ -34,8 +36,8 @@ type SearchItem = {
 
 const sidebarGroupLabels = new Set(sidebarItems.flatMap((group) => (group.label ? [group.label] : [])));
 
-function getSubItemGroup(groupLabel: string | undefined, itemTitle: string) {
-  return sidebarGroupLabels.has(itemTitle) ? (groupLabel ?? "Other") : itemTitle;
+function getSubItemGroup(groupLabel: TranslationKey | undefined, itemTitle: TranslationKey) {
+  return sidebarGroupLabels.has(itemTitle) ? (groupLabel ?? "nav.control") : itemTitle;
 }
 
 const searchItems: SearchItem[] = sidebarItems.flatMap((group) =>
@@ -53,7 +55,7 @@ const searchItems: SearchItem[] = sidebarItems.flatMap((group) =>
     }
     return [
       {
-        group: group.label ?? "Other",
+        group: group.label ?? "nav.control",
         label: item.title,
         url: item.url,
         icon: item.icon,
@@ -81,6 +83,7 @@ export function SearchDialog({ role }: { readonly role: Role }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const router = useRouter();
+  const { t } = useI18n();
   const availableItems = getAvailableItems(searchItems, role);
 
   React.useEffect(() => {
@@ -113,20 +116,20 @@ export function SearchDialog({ role }: { readonly role: Role }) {
     groupBy(items).map(({ group, items: groupItems }, index) => (
       <React.Fragment key={group}>
         {index > 0 && <CommandSeparator />}
-        <CommandGroup heading={group}>
+        <CommandGroup heading={t(group)}>
           {groupItems.map((item) => (
             <CommandItem
               disabled={item.disabled}
               key={`${group}-${item.url}-${item.label}`}
-              value={`${item.group} ${item.label}`}
+              value={`${t(item.group)} ${t(item.label)}`}
               onSelect={() => handleSelect(item)}
             >
               {item.icon && <item.icon />}
-              <span>{item.label}</span>
+              <span>{t(item.label)}</span>
 
               {item.disabled && (
                 <Badge variant="outline" className="text-xs">
-                  Soon
+                  {t("nav.comingSoon")}
                 </Badge>
               )}
             </CommandItem>
@@ -143,16 +146,16 @@ export function SearchDialog({ role }: { readonly role: Role }) {
         className="px-0! font-normal text-muted-foreground hover:no-underline"
       >
         <Search data-icon="inline-start" />
-        Buscar
+        {t("search.open")}
         <kbd className="inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-medium text-[10px]">
           <span className="text-xs">⌘</span>J
         </kbd>
       </Button>
       <CommandDialog open={open} onOpenChange={handleOpenChange}>
         <Command>
-          <CommandInput placeholder="Buscar páginas do PROEXEL…" value={query} onValueChange={setQuery} />
+          <CommandInput placeholder={t("search.placeholder")} value={query} onValueChange={setQuery} />
           <CommandList>
-            <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
+            <CommandEmpty>{t("search.empty")}</CommandEmpty>
             {renderGroups(availableItems)}
           </CommandList>
         </Command>

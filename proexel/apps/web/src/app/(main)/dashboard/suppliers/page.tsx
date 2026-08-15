@@ -3,6 +3,7 @@ import { Building2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getI18n } from "@/lib/i18n/server";
 import { requirePermission } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
 import { listSuppliers } from "@/lib/proexel/service";
@@ -14,31 +15,34 @@ import { ProexelEmptyState } from "../_components/proexel-empty-state";
 export const dynamic = "force-dynamic";
 
 export default async function SuppliersPage() {
-  const { role } = await requirePermission("supplier.read");
-  const suppliers = await listSuppliers();
+  const [{ role }, suppliers, { t }] = await Promise.all([
+    requirePermission("supplier.read"),
+    listSuppliers(),
+    getI18n(),
+  ]);
   return (
     <div>
       <PageHeader
-        title="Fornecedores"
-        description="Contatos comerciais e referências de fornecimento."
+        title={t("nav.suppliers")}
+        description={t("suppliers.description")}
         action={
           can("supplier.create_update_delete", role) ? (
             <CommandDialog
               trigger={
                 <Button>
                   <Plus />
-                  Novo fornecedor
+                  {t("suppliers.new")}
                 </Button>
               }
-              title="Cadastrar fornecedor"
-              description="Nome e contato são obrigatórios."
+              title={t("suppliers.create")}
+              description={t("suppliers.createDescription")}
               endpoint="/api/proexel/suppliers"
               fields={[
-                { name: "name", label: "Nome", required: true },
-                { name: "contact", label: "Contato", required: true },
-                { name: "email", label: "Email", type: "email" },
-                { name: "website", label: "Website", type: "url" },
-                { name: "notes", label: "Notas", type: "textarea" },
+                { name: "name", label: t("common.name"), required: true },
+                { name: "contact", label: t("common.contact"), required: true },
+                { name: "email", label: t("common.email"), type: "email" },
+                { name: "website", label: t("common.website"), type: "url" },
+                { name: "notes", label: t("common.notes"), type: "textarea" },
               ]}
             />
           ) : null
@@ -46,26 +50,26 @@ export default async function SuppliersPage() {
       />
       <Card>
         <CardHeader>
-          <CardTitle>Cadastro de fornecedores</CardTitle>
-          <CardDescription>{suppliers.items.length} fornecedor(es)</CardDescription>
+          <CardTitle>{t("suppliers.registry")}</CardTitle>
+          <CardDescription>{t("suppliers.count", { count: suppliers.items.length })}</CardDescription>
         </CardHeader>
         <CardContent>
           {suppliers.items.length === 0 ? (
             <ProexelEmptyState
               icon={Building2}
-              title="Nenhum fornecedor"
-              description="Cadastre contatos para apoiar o processo de compras."
+              title={t("suppliers.none")}
+              description={t("suppliers.noneDescription")}
             />
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Website</TableHead>
-                    <TableHead>Notas</TableHead>
+                    <TableHead>{t("common.name")}</TableHead>
+                    <TableHead>{t("common.contact")}</TableHead>
+                    <TableHead>{t("common.email")}</TableHead>
+                    <TableHead>{t("common.website")}</TableHead>
+                    <TableHead>{t("common.notes")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -82,7 +86,7 @@ export default async function SuppliersPage() {
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Abrir
+                            {t("common.open")}
                           </a>
                         ) : (
                           "-"

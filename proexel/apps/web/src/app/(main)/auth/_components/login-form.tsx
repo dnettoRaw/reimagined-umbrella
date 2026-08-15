@@ -8,14 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-
-const formSchema = z.object({
-  email: z.string().email({ message: "Informe um email válido." }),
-  password: z.string().min(8, { message: "A palavra-passe deve ter pelo menos 8 caracteres." }),
-  remember: z.boolean().optional(),
-});
+import { useI18n } from "@/lib/i18n/provider";
 
 export function LoginForm({ next }: { readonly next?: string }) {
+  const { t } = useI18n();
+  const formSchema = z.object({
+    email: z.string().email({ message: t("login.emailInvalid") }),
+    password: z.string().min(8, { message: t("login.passwordInvalid") }),
+    remember: z.boolean().optional(),
+  });
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -33,7 +34,7 @@ export function LoginForm({ next }: { readonly next?: string }) {
     });
     const result = (await response.json().catch(() => ({}))) as { error?: string; next?: string };
     if (!response.ok) {
-      form.setError("root", { message: result.error ?? "Não foi possível iniciar a sessão." });
+      form.setError("root", { message: result.error ?? t("login.failed") });
       return;
     }
     window.location.assign(result.next ?? "/dashboard/overview");
@@ -47,7 +48,7 @@ export function LoginForm({ next }: { readonly next?: string }) {
           name="email"
           render={({ field, fieldState }) => (
             <Field className="gap-1.5" data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor="login-email">Email</FieldLabel>
+              <FieldLabel htmlFor="login-email">{t("common.email")}</FieldLabel>
               <Input
                 {...field}
                 id="login-email"
@@ -65,7 +66,7 @@ export function LoginForm({ next }: { readonly next?: string }) {
           name="password"
           render={({ field, fieldState }) => (
             <Field className="gap-1.5" data-invalid={fieldState.invalid}>
-              <FieldLabel htmlFor="login-password">Palavra-passe</FieldLabel>
+              <FieldLabel htmlFor="login-password">{t("login.password")}</FieldLabel>
               <Input
                 {...field}
                 id="login-password"
@@ -92,7 +93,7 @@ export function LoginForm({ next }: { readonly next?: string }) {
               />
               <FieldContent>
                 <FieldLabel htmlFor="login-remember" className="font-normal">
-                  Manter sessão por 30 dias
+                  {t("login.remember")}
                 </FieldLabel>
                 {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
               </FieldContent>
@@ -102,7 +103,7 @@ export function LoginForm({ next }: { readonly next?: string }) {
       </FieldGroup>
       {form.formState.errors.root ? <FieldError errors={[form.formState.errors.root]} /> : null}
       <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
-        {form.formState.isSubmitting ? "A validar…" : "Entrar"}
+        {form.formState.isSubmitting ? t("login.submitting") : t("login.submit")}
       </Button>
     </form>
   );

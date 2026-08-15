@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { INTL_LOCALES } from "@/lib/i18n/config";
+import { getI18n } from "@/lib/i18n/server";
 import { requirePermission } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
 import { listValves } from "@/lib/proexel/service";
@@ -17,37 +19,40 @@ export const dynamic = "force-dynamic";
 
 export default async function ValvesPage({ searchParams }: { readonly searchParams: Promise<{ q?: string }> }) {
   const { q = "" } = await searchParams;
-  const { role } = await requirePermission("valve.read");
-  const valves = await listValves(q ? { search: q } : {});
+  const [{ role }, valves, { t, locale }] = await Promise.all([
+    requirePermission("valve.read"),
+    listValves(q ? { search: q } : {}),
+    getI18n(),
+  ]);
 
   return (
     <div>
       <PageHeader
-        title="Válvulas"
-        description="Cadastro técnico e condição de manutenção da planta."
+        title={t("nav.valves")}
+        description={t("valves.description")}
         action={
           can("valve.create", role) ? (
             <CommandDialog
               trigger={
                 <Button>
                   <Plus />
-                  Nova válvula
+                  {t("valves.new")}
                 </Button>
               }
-              title="Cadastrar válvula"
-              description="A TAG será normalizada e a referência de kit criará um item de estoque quando necessário."
+              title={t("valves.create")}
+              description={t("valves.createDescription")}
               endpoint="/api/proexel/valves"
               fields={[
-                { name: "tag", label: "TAG", required: true, placeholder: "FV 10.2" },
-                { name: "zone", label: "Zona", required: true, placeholder: "Zona A" },
-                { name: "manufacturer", label: "Fabricante" },
-                { name: "serial", label: "Número de série" },
-                { name: "valve_type", label: "Tipo" },
+                { name: "tag", label: t("valves.tag"), required: true, placeholder: t("valves.tagPlaceholder") },
+                { name: "zone", label: t("common.zone"), required: true, placeholder: t("valves.zonePlaceholder") },
+                { name: "manufacturer", label: t("common.manufacturer") },
+                { name: "serial", label: t("valves.serial") },
+                { name: "valve_type", label: t("valves.valveType") },
                 { name: "dn", label: "DN" },
-                { name: "kit_reference", label: "Referência do kit" },
-                { name: "seat", label: "Assento" },
-                { name: "actuator", label: "Atuador" },
-                { name: "manufactured_at", label: "Fabricação", type: "date" },
+                { name: "kit_reference", label: t("valves.kitReference") },
+                { name: "seat", label: t("valves.seat") },
+                { name: "actuator", label: t("valves.actuator") },
+                { name: "manufactured_at", label: t("valves.manufactured"), type: "date" },
               ]}
             />
           ) : null
@@ -57,14 +62,22 @@ export default async function ValvesPage({ searchParams }: { readonly searchPara
       <Card>
         <CardHeader className="gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <CardTitle>Registro técnico</CardTitle>
+            <CardTitle>{t("valves.registry")}</CardTitle>
             <CardDescription>
-              {valves.items.length} resultado(s) · origem {valves.source}
+              {t("valves.results", {
+                count: valves.items.length,
+                source: valves.source === "appcore" ? "AppCore" : t("common.unavailable"),
+              })}
             </CardDescription>
           </div>
           <form className="flex w-full gap-2 sm:w-80">
-            <Input name="q" defaultValue={q} placeholder="Buscar TAG ou zona" aria-label="Buscar válvulas" />
-            <Button type="submit" size="icon" variant="outline" title="Buscar">
+            <Input
+              name="q"
+              defaultValue={q}
+              placeholder={t("valves.searchPlaceholder")}
+              aria-label={t("valves.searchAria")}
+            />
+            <Button type="submit" size="icon" variant="outline" title={t("common.search")}>
               <Search />
             </Button>
           </form>
@@ -73,8 +86,8 @@ export default async function ValvesPage({ searchParams }: { readonly searchPara
           {valves.items.length === 0 ? (
             <ProexelEmptyState
               icon={Activity}
-              title={q ? "Nenhuma válvula encontrada" : "Nenhuma válvula cadastrada"}
-              description={q ? "Revise o termo de busca." : "Cadastre a primeira válvula para iniciar a operação."}
+              title={q ? t("valves.noneFound") : t("valves.none")}
+              description={q ? t("valves.reviewSearch") : t("valves.createFirst")}
             />
           ) : (
             <div className="overflow-x-auto">
@@ -82,12 +95,12 @@ export default async function ValvesPage({ searchParams }: { readonly searchPara
                 <TableHeader>
                   <TableRow>
                     <TableHead>TAG</TableHead>
-                    <TableHead>Zona</TableHead>
-                    <TableHead>Fabricante</TableHead>
-                    <TableHead>Tipo / DN</TableHead>
-                    <TableHead>Kit</TableHead>
-                    <TableHead>Última manutenção</TableHead>
-                    <TableHead>Condição</TableHead>
+                    <TableHead>{t("common.zone")}</TableHead>
+                    <TableHead>{t("common.manufacturer")}</TableHead>
+                    <TableHead>{t("valves.typeDn")}</TableHead>
+                    <TableHead>{t("valves.kit")}</TableHead>
+                    <TableHead>{t("valves.lastMaintenance")}</TableHead>
+                    <TableHead>{t("common.health")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -98,9 +111,24 @@ export default async function ValvesPage({ searchParams }: { readonly searchPara
                       <TableCell>{valve.manufacturer ?? "-"}</TableCell>
                       <TableCell>{[valve.valve_type, valve.dn].filter(Boolean).join(" / ") || "-"}</TableCell>
                       <TableCell>{valve.kit_reference ?? "-"}</TableCell>
-                      <TableCell>{valve.last_maintenance_at ?? "Nunca"}</TableCell>
                       <TableCell>
-                        <HealthBadge health={valve.health} />
+                        {valve.last_maintenance_at
+                          ? new Intl.DateTimeFormat(INTL_LOCALES[locale]).format(
+                              new Date(`${valve.last_maintenance_at}T00:00:00`),
+                            )
+                          : t("common.never")}
+                      </TableCell>
+                      <TableCell>
+                        <HealthBadge
+                          health={valve.health}
+                          label={
+                            valve.health === "ok"
+                              ? t("overview.onTrack")
+                              : valve.health === "warning"
+                                ? t("common.warning")
+                                : t("common.critical")
+                          }
+                        />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -114,8 +142,7 @@ export default async function ValvesPage({ searchParams }: { readonly searchPara
   );
 }
 
-function HealthBadge({ health }: { readonly health: "ok" | "warning" | "critical" }) {
-  const label = health === "ok" ? "Em dia" : health === "warning" ? "Atenção" : "Crítica";
+function HealthBadge({ health, label }: { readonly health: "ok" | "warning" | "critical"; readonly label: string }) {
   return (
     <Badge variant={health === "critical" ? "destructive" : health === "warning" ? "secondary" : "outline"}>
       {label}

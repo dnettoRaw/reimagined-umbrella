@@ -1,3 +1,5 @@
+import type { TranslationKey } from "../i18n/messages";
+import { getI18n } from "../i18n/server";
 import { getCurrentSession } from "./auth-server";
 import { can } from "./permissions";
 import type {
@@ -38,6 +40,25 @@ const QUERY_PERMISSIONS: Record<string, string> = {
   "proexel.suppliers.list": "supplier.read",
   "proexel.audit.list": "audit.read",
   "proexel.reports.get": "report.read",
+};
+
+const SERVICE_ERROR_KEYS: Record<string, TranslationKey> = {
+  invalid_json_payload: "service.invalidPayload",
+  invalid_command_data: "service.invalidPayload",
+  unknown_command: "service.unknownCommand",
+  forbidden: "service.permissionDenied",
+  tag_already_exists: "service.tagExists",
+  valve_not_found: "service.valveNotFound",
+  order_not_found: "service.orderNotFound",
+  invalid_order_status_transition: "service.invalidOrderTransition",
+  review_status_must_be_final: "service.reviewMustBeFinal",
+  restock_request_not_found: "service.restockNotFound",
+  restock_request_already_reviewed: "service.restockReviewed",
+  adjustment_delta_cannot_be_zero: "service.zeroAdjustment",
+  stock_item_not_found: "service.stockNotFound",
+  stock_cannot_be_negative: "service.stockNegative",
+  stock_quantity_overflow: "service.stockOverflow",
+  supplier_not_found: "service.supplierNotFound",
 };
 
 const EMPTY_OVERVIEW: OverviewResult = {
@@ -100,16 +121,17 @@ function emptyList<T>(): ListResult<T> {
 }
 
 export async function executeCommand(capability: string, data: Record<string, unknown>): Promise<CommandResult> {
+  const { t } = await getI18n();
   const session = await getCurrentSession();
-  if (!session) throw new ProexelServiceError("Sessão inválida ou expirada.", 401);
+  if (!session) throw new ProexelServiceError(t("service.invalidSession"), 401);
   const serviceUrl = process.env.PROEXEL_SERVICE_URL;
   const token = capabilityToken(capability);
-  if (!serviceUrl) throw new ProexelServiceError("Serviço PROEXEL não configurado.");
-  if (!token) throw new ProexelServiceError(`Token ausente para ${capability}.`, 401);
+  if (!serviceUrl) throw new ProexelServiceError(t("service.notConfigured"));
+  if (!token) throw new ProexelServiceError(t("service.missingToken", { capability }), 401);
   const commandId = `web-${crypto.randomUUID()}`;
   const permission = COMMAND_PERMISSIONS[capability];
   if (!permission || !can(permission, session.role)) {
-    throw new ProexelServiceError(`Papel ${session.role} sem permissão para ${capability}.`, 403);
+    throw new ProexelServiceError(t("service.forbidden", { role: t(`role.${session.role}`), capability }), 403);
   }
   const response = await fetch(`${serviceUrl}/v1/command`, {
     method: "POST",
@@ -130,7 +152,8 @@ export async function executeCommand(capability: string, data: Record<string, un
   });
   const body = (await response.json().catch(() => ({}))) as CommandResult;
   if (!response.ok || !body.accepted) {
-    throw new ProexelServiceError(body.message ?? "Comando rejeitado pelo serviço.", response.status || 400);
+    const messageKey = body.message ? SERVICE_ERROR_KEYS[body.message.split(":", 1)[0]] : undefined;
+    throw new ProexelServiceError(messageKey ? t(messageKey) : t("command.rejected"), response.status || 400);
   }
   return body;
 }

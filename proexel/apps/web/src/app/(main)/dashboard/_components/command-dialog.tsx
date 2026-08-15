@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/lib/i18n/provider";
 
 export interface CommandField {
   name: string;
@@ -46,6 +47,7 @@ export function CommandDialog({
   readonly fields: CommandField[];
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -68,12 +70,12 @@ export function CommandDialog({
         body: JSON.stringify(data),
       });
       const result = (await response.json()) as { accepted?: boolean; message?: string };
-      if (!response.ok || !result.accepted) throw new Error(result.message ?? "Operação rejeitada.");
-      toast.success("Operação concluída");
+      if (!response.ok || !result.accepted) throw new Error(result.message ?? t("command.rejected"));
+      toast.success(t("command.success"));
       setOpen(false);
       router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível concluir a operação.");
+      toast.error(error instanceof Error ? error.message : t("command.failed"));
     } finally {
       setPending(false);
     }
@@ -119,7 +121,7 @@ export function CommandDialog({
                           defaultValue={String(field.defaultValue ?? "")}
                           className="h-9 rounded-md border bg-background px-3 text-sm"
                         >
-                          <option value="">Selecione</option>
+                          <option value="">{t("common.select")}</option>
                           {field.options?.map((option) => (
                             <option key={option.value} value={option.value}>
                               {option.label}
@@ -144,7 +146,7 @@ export function CommandDialog({
           </div>
           <DialogFooter>
             <Button type="submit" disabled={pending}>
-              {pending ? "Salvando..." : "Confirmar"}
+              {pending ? t("common.saving") : t("common.confirm")}
             </Button>
           </DialogFooter>
         </form>

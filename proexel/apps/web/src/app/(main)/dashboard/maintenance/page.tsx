@@ -4,6 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { INTL_LOCALES } from "@/lib/i18n/config";
+import { getI18n } from "@/lib/i18n/server";
 import { requirePermission } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
 import { listMaintenance, listValves } from "@/lib/proexel/service";
@@ -15,55 +17,59 @@ import { ProexelEmptyState } from "../_components/proexel-empty-state";
 export const dynamic = "force-dynamic";
 
 export default async function MaintenancePage() {
-  const { role } = await requirePermission("maintenance.read");
-  const [maintenance, valves] = await Promise.all([listMaintenance(), listValves()]);
+  const [{ role }, maintenance, valves, { t, locale }] = await Promise.all([
+    requirePermission("maintenance.read"),
+    listMaintenance(),
+    listValves(),
+    getI18n(),
+  ]);
   return (
     <div>
       <PageHeader
-        title="Manutenção"
-        description="Execuções registradas com atualização de condição e consumo idempotente de kit."
+        title={t("nav.maintenance")}
+        description={t("maintenance.description")}
         action={
           can("maintenance.register", role) ? (
             <CommandDialog
               trigger={
                 <Button disabled={valves.items.length === 0}>
                   <Plus />
-                  Registrar manutenção
+                  {t("maintenance.register")}
                 </Button>
               }
-              title="Registrar manutenção"
-              description="A manutenção física será preservada mesmo quando o consumo do kit ficar pendente por falta de estoque."
+              title={t("maintenance.register")}
+              description={t("maintenance.registerDescription")}
               endpoint="/api/proexel/maintenance"
               fields={[
                 {
                   name: "valve_id",
-                  label: "Válvula",
+                  label: t("maintenance.valve"),
                   type: "select",
                   required: true,
                   options: valves.items.map((valve) => ({ label: `${valve.tag} · ${valve.zone}`, value: valve.id })),
                 },
                 {
                   name: "performed_at",
-                  label: "Data",
+                  label: t("common.date"),
                   type: "date",
                   required: true,
                   defaultValue: new Date().toISOString().slice(0, 10),
                 },
-                { name: "technician", label: "Técnico", required: true },
+                { name: "technician", label: t("common.technician"), required: true },
                 {
                   name: "maintenance_type",
-                  label: "Tipo",
+                  label: t("common.type"),
                   type: "select",
                   required: true,
                   options: [
-                    { label: "Preventiva", value: "preventive" },
-                    { label: "Corretiva", value: "corrective" },
+                    { label: t("maintenance.preventive"), value: "preventive" },
+                    { label: t("maintenance.corrective"), value: "corrective" },
                   ],
                 },
-                { name: "service", label: "Serviço executado", type: "textarea", required: true },
-                { name: "notes", label: "Notas", type: "textarea" },
-                { name: "signature_ref", label: "Referência da assinatura" },
-                { name: "kit_changed", label: "Houve troca de kit", type: "checkbox" },
+                { name: "service", label: t("maintenance.service"), type: "textarea", required: true },
+                { name: "notes", label: t("common.notes"), type: "textarea" },
+                { name: "signature_ref", label: t("maintenance.signature") },
+                { name: "kit_changed", label: t("maintenance.kitChanged"), type: "checkbox" },
               ]}
             />
           ) : null
@@ -71,44 +77,52 @@ export default async function MaintenancePage() {
       />
       <Card>
         <CardHeader>
-          <CardTitle>Histórico de manutenção</CardTitle>
-          <CardDescription>{maintenance.items.length} registro(s)</CardDescription>
+          <CardTitle>{t("maintenance.history")}</CardTitle>
+          <CardDescription>{t("maintenance.records", { count: maintenance.items.length })}</CardDescription>
         </CardHeader>
         <CardContent>
           {maintenance.items.length === 0 ? (
             <ProexelEmptyState
               icon={Wrench}
-              title="Nenhuma manutenção registrada"
-              description="Selecione uma válvula e registre a primeira execução."
+              title={t("maintenance.none")}
+              description={t("maintenance.noneDescription")}
             />
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
+                    <TableHead>{t("common.date")}</TableHead>
                     <TableHead>TAG</TableHead>
-                    <TableHead>Técnico</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Serviço</TableHead>
-                    <TableHead>Kit</TableHead>
+                    <TableHead>{t("common.technician")}</TableHead>
+                    <TableHead>{t("common.type")}</TableHead>
+                    <TableHead>{t("maintenance.service")}</TableHead>
+                    <TableHead>{t("valves.kit")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {maintenance.items.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell>{item.performed_at}</TableCell>
+                      <TableCell>
+                        {new Intl.DateTimeFormat(INTL_LOCALES[locale]).format(
+                          new Date(`${item.performed_at}T00:00:00`),
+                        )}
+                      </TableCell>
                       <TableCell className="font-medium">{item.valve_tag_snapshot}</TableCell>
                       <TableCell>{item.technician}</TableCell>
-                      <TableCell>{item.maintenance_type === "preventive" ? "Preventiva" : "Corretiva"}</TableCell>
+                      <TableCell>
+                        {item.maintenance_type === "preventive"
+                          ? t("maintenance.preventive")
+                          : t("maintenance.corrective")}
+                      </TableCell>
                       <TableCell className="max-w-80 whitespace-normal">{item.service}</TableCell>
                       <TableCell>
                         {!item.kit_changed ? (
-                          <Badge variant="outline">Sem troca</Badge>
+                          <Badge variant="outline">{t("maintenance.noChange")}</Badge>
                         ) : item.stock_consumed ? (
-                          <Badge>Consumido</Badge>
+                          <Badge>{t("maintenance.consumed")}</Badge>
                         ) : (
-                          <Badge variant="destructive">Consumo pendente</Badge>
+                          <Badge variant="destructive">{t("maintenance.pendingConsumption")}</Badge>
                         )}
                       </TableCell>
                     </TableRow>

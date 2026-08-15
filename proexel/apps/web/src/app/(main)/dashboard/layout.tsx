@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 
 import { AppSidebar } from "@/app/(main)/dashboard/_components/sidebar/app-sidebar";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { SIDEBAR_COLLAPSIBLE_VALUES, SIDEBAR_VARIANT_VALUES } from "@/lib/preferences/layout";
@@ -63,6 +64,7 @@ export default async function Layout({ children }: Readonly<{ children: ReactNod
               <SearchDialog role={session.role} />
             </div>
             <div className="flex items-center gap-2">
+              <LocaleSwitcher compact />
               <LayoutControls />
               <ThemeSwitcher />
             </div>
