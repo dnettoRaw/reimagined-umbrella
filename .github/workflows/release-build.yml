@@ -27,10 +27,32 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: Check out repository and AppCore
-        uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v6
         with:
-          submodules: recursive
+          persist-credentials: false
+
+      - name: Resolve pinned AppCore revision
+        id: appcore
+        run: echo "revision=$(git rev-parse HEAD:core/AppCore-Runtime)" >> "$GITHUB_OUTPUT"
+
+      - name: Require AppCore repository token
+        env:
+          APPCORE_REPOSITORY_TOKEN: ${{ secrets.APPCORE_REPOSITORY_TOKEN }}
+        run: |
+          if [ -z "$APPCORE_REPOSITORY_TOKEN" ]; then
+            echo "::error::Configure the APPCORE_REPOSITORY_TOKEN repository secret with read access to dnettoRaw/AppCore-Runtime."
+            exit 1
+          fi
+
+      - name: Check out pinned AppCore revision
+        uses: actions/checkout@v6
+        with:
+          repository: dnettoRaw/AppCore-Runtime
+          ref: ${{ steps.appcore.outputs.revision }}
+          path: core/AppCore-Runtime
+          token: ${{ secrets.APPCORE_REPOSITORY_TOKEN }}
+          persist-credentials: false
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.1
@@ -72,7 +94,7 @@ jobs:
           tar -czf release/proexel-rust-linux-x64.tar.gz -C release/rust .
 
       - name: Upload Rust artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: proexel-rust-linux-x64-${{ github.sha }}
           path: proexel/release/proexel-rust-linux-x64.tar.gz
@@ -86,12 +108,14 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: proexel/apps/web/package-lock.json
 
@@ -120,7 +144,7 @@ jobs:
           tar -czf release/proexel-web-linux-x64.tar.gz -C release/web .
 
       - name: Upload web artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: proexel-web-linux-x64-${{ github.sha }}
           path: proexel/apps/web/release/proexel-web-linux-x64.tar.gz

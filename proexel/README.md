@@ -48,6 +48,12 @@ in `.github/workflows/release-build.yml`. It validates Rust and web code, builds
 optimized Linux binaries and uploads standalone Rust and Next.js artifacts for
 30 days. The workflow can also be started manually with `workflow_dispatch`.
 
+Because AppCore is a private repository, configure a repository Actions secret
+named `APPCORE_REPOSITORY_TOKEN`. Use a fine-grained token with read-only
+`Contents` access to `dnettoRaw/AppCore-Runtime`; it does not need access to this
+repository. The workflow checks out the exact AppCore commit pinned by the
+submodule entry.
+
 For the web application:
 
 ```bash
