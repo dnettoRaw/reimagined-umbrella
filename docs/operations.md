@@ -9,11 +9,10 @@ the previous version while holding the application transaction lock.
 
 ## Backup and restore
 
-For a consistent manual backup, stop `dev-stack.sh`, copy
-`proexel/apps/service/target/runtime/storage/proexel-state-v1.json` to a dated,
-access-controlled location, then restart. Restore only while the service is
-stopped. The AppCore deployment also provides its configured backup directory at
-`proexel/apps/service/target/runtime/backups`.
+Follow [`backup-restore.md`](backup-restore.md) for the cold-copy, checksum,
+validation, restore, and rollback procedure. The deployment manifest declares
+`proexel/apps/service/target/runtime/backups`, but the current PROEXEL adapter
+does not schedule or create application backups automatically.
 
 ## Authentication
 
@@ -36,12 +35,6 @@ from one forwarded client address trigger a 15-minute lockout.
 
 ## Troubleshooting
 
-- `security secret expired` during startup: use the current launcher, which
-  prebuilds AppCore and emits all scoped tokens inside the 60-second bootstrap
-  secret window.
-- `invalid bearer token`: regenerate the scoped token map by restarting the stack.
-- `storage_decode_failed`: stop the service and restore a known-good backup.
-- Port already in use: stop the existing PROEXEL dev process before launching a
-  second stack.
-- Web reads show `unavailable`: verify `/v1/health`, `PROEXEL_SERVICE_URL`, and
-  the capability token map.
+Use [`troubleshooting.md`](troubleshooting.md) for startup, authentication,
+token, storage, migration, locale, and build failures. Deployment topology and
+upgrade/rollback steps are in [`deployment.md`](deployment.md).

@@ -1,5 +1,15 @@
 # Release notes
 
+## Unreleased
+
+- Added complete UI localization for Portuguese, English, Spanish, and French,
+  including authentication, navigation, forms, dialogs, empty/error states, and
+  server-facing error presentation.
+- Added consolidated architecture, configuration, deployment, backup/restore,
+  troubleshooting, implementation-status, and functional-parity documents.
+- Reconciled RBAC, migration, operations, AppCore boundary, and README guidance
+  with the implemented baseline.
+
 ## 0.1.0 - reconstruction baseline
 
 - Added AppCore-hosted PROEXEL commands and queries with scoped capabilities.
@@ -19,5 +29,6 @@
 - Removed dashboard template demo routes and legacy runtime dependencies.
 
 Known release blockers for production remain: managed identity provisioning,
-PT/EN/ES localization, validated photo upload/storage, configured sync/outbox,
-and paginated PDF report export.
+validated photo upload/storage, configured sync/outbox, graphical signature
+capture, paginated PDF export, complete legacy workflow parity, and committed
+end-to-end/performance gates.

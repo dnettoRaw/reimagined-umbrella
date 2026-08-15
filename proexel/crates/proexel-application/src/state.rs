@@ -98,6 +98,8 @@ impl ApplicationState {
         let (permission, receipt, before, after, description) = match command_name {
             commands::CREATE_VALVE => self.create_valve(command_id, issued_at_ms, &payload)?,
             commands::UPDATE_VALVE => self.update_valve(issued_at_ms, &payload)?,
+            commands::ADD_VALVE_PHOTO => self.add_valve_photo(command_id, &payload)?,
+            commands::DELETE_VALVE_PHOTO => self.delete_valve_photo(&payload)?,
             commands::REGISTER_MAINTENANCE => {
                 self.register_maintenance(command_id, idempotency_key, issued_at_ms, &payload)?
             }
@@ -107,22 +109,26 @@ impl ApplicationState {
             commands::CHANGE_SERVICE_ORDER_STATUS => {
                 self.change_service_order_status(issued_at_ms, &payload)?
             }
+            commands::DELETE_SERVICE_ORDER => self.delete_service_order(&payload)?,
             commands::CREATE_RESTOCK_REQUEST => {
                 self.create_restock_request(command_id, issued_at_ms, &payload)?
             }
             commands::REVIEW_RESTOCK_REQUEST => {
                 self.review_restock_request(issued_at_ms, &payload)?
             }
+            commands::DELETE_RESTOCK_REQUEST => self.delete_restock_request(&payload)?,
             commands::ADJUST_STOCK => {
                 self.adjust_stock_item(command_id, idempotency_key, issued_at_ms, &payload)?
             }
             commands::UPSERT_STOCK_ITEM => {
                 self.upsert_stock_item(command_id, issued_at_ms, &payload)?
             }
+            commands::DELETE_STOCK_ITEM => self.delete_stock_item(&payload)?,
             commands::CREATE_SUPPLIER => {
                 self.create_supplier(command_id, issued_at_ms, &payload)?
             }
             commands::UPDATE_SUPPLIER => self.update_supplier(issued_at_ms, &payload)?,
+            commands::DELETE_SUPPLIER => self.delete_supplier(&payload)?,
             _ => return Err("unknown_command".to_string()),
         };
 
@@ -250,6 +256,62 @@ impl ApplicationState {
             before,
             after,
             "Valve updated",
+        ))
+    }
+
+    fn add_valve_photo(
+        &mut self,
+        command_id: &str,
+        payload: &CommandPayload,
+    ) -> Result<Action, String> {
+        require_permission(payload.actor.role, "valve.update_photo")?;
+        let input: AddValvePhoto = parse_data(payload)?;
+        require_text(&input.blob_ref, "photo_ref_required")?;
+        if !self.valves.iter().any(|valve| valve.id == input.valve_id) {
+            return Err("valve_not_found".to_string());
+        }
+        if self
+            .valve_photos
+            .iter()
+            .any(|photo| photo.blob_ref == input.blob_ref)
+        {
+            return Err("photo_already_exists".to_string());
+        }
+        let id = format!("photo-{command_id}");
+        let photo = ValvePhoto {
+            id: id.clone(),
+            valve_id: input.valve_id,
+            legacy_tag: None,
+            blob_ref: input.blob_ref.trim().to_string(),
+        };
+        let after = json_string(&photo);
+        self.valve_photos.push(photo);
+        Ok(action(
+            "valve.update_photo",
+            "valve_photo",
+            id,
+            None,
+            after,
+            "Valve photo added",
+        ))
+    }
+
+    fn delete_valve_photo(&mut self, payload: &CommandPayload) -> Result<Action, String> {
+        require_permission(payload.actor.role, "valve.update_photo")?;
+        let input: DeleteById = parse_data(payload)?;
+        let index = self
+            .valve_photos
+            .iter()
+            .position(|photo| photo.id == input.id)
+            .ok_or_else(|| "photo_not_found".to_string())?;
+        let photo = self.valve_photos.remove(index);
+        Ok(action(
+            "valve.update_photo",
+            "valve_photo",
+            photo.id.clone(),
+            json_string(&photo),
+            None,
+            "Valve photo removed",
         ))
     }
 
@@ -417,6 +479,28 @@ impl ApplicationState {
         ))
     }
 
+    fn delete_service_order(&mut self, payload: &CommandPayload) -> Result<Action, String> {
+        require_permission(payload.actor.role, "order.delete")?;
+        let input: DeleteById = parse_data(payload)?;
+        let index = self
+            .service_orders
+            .iter()
+            .position(|order| order.id == input.id)
+            .ok_or_else(|| "order_not_found".to_string())?;
+        if self.service_orders[index].status == ServiceOrderStatus::Completed {
+            return Err("completed_order_cannot_be_deleted".to_string());
+        }
+        let order = self.service_orders.remove(index);
+        Ok(action(
+            "order.delete",
+            "service_order",
+            order.id.clone(),
+            json_string(&order),
+            None,
+            "Service order deleted",
+        ))
+    }
+
     fn create_restock_request(
         &mut self,
         command_id: &str,
@@ -481,6 +565,28 @@ impl ApplicationState {
             before,
             after,
             "Restock request reviewed",
+        ))
+    }
+
+    fn delete_restock_request(&mut self, payload: &CommandPayload) -> Result<Action, String> {
+        require_permission(payload.actor.role, "restock.delete")?;
+        let input: DeleteById = parse_data(payload)?;
+        let index = self
+            .restock_requests
+            .iter()
+            .position(|request| request.id == input.id)
+            .ok_or_else(|| "restock_request_not_found".to_string())?;
+        if self.restock_requests[index].status == RestockStatus::Approved {
+            return Err("approved_restock_cannot_be_deleted".to_string());
+        }
+        let request = self.restock_requests.remove(index);
+        Ok(action(
+            "restock.delete",
+            "restock_request",
+            request.id.clone(),
+            json_string(&request),
+            None,
+            "Restock request deleted",
         ))
     }
 
@@ -581,6 +687,28 @@ impl ApplicationState {
         ))
     }
 
+    fn delete_stock_item(&mut self, payload: &CommandPayload) -> Result<Action, String> {
+        require_permission(payload.actor.role, "stock.delete")?;
+        let input: DeleteById = parse_data(payload)?;
+        let index = self
+            .stock_items
+            .iter()
+            .position(|item| item.id == input.id)
+            .ok_or_else(|| "stock_item_not_found".to_string())?;
+        if self.stock_items[index].quantity > 0 {
+            return Err("stock_item_not_empty".to_string());
+        }
+        let item = self.stock_items.remove(index);
+        Ok(action(
+            "stock.delete",
+            "stock_item",
+            item.id.clone(),
+            json_string(&item),
+            None,
+            "Stock item deleted",
+        ))
+    }
+
     fn create_supplier(
         &mut self,
         command_id: &str,
@@ -640,6 +768,25 @@ impl ApplicationState {
             before,
             after,
             "Supplier updated",
+        ))
+    }
+
+    fn delete_supplier(&mut self, payload: &CommandPayload) -> Result<Action, String> {
+        require_permission(payload.actor.role, "supplier.create_update_delete")?;
+        let input: DeleteById = parse_data(payload)?;
+        let index = self
+            .suppliers
+            .iter()
+            .position(|supplier| supplier.id == input.id)
+            .ok_or_else(|| "supplier_not_found".to_string())?;
+        let supplier = self.suppliers.remove(index);
+        Ok(action(
+            "supplier.create_update_delete",
+            "supplier",
+            supplier.id.clone(),
+            json_string(&supplier),
+            None,
+            "Supplier deleted",
         ))
     }
 
@@ -776,6 +923,15 @@ struct UpdateValve {
     valve_type: Option<String>,
     actuator: Option<String>,
     manufactured_at: Option<String>,
+}
+#[derive(Deserialize)]
+struct AddValvePhoto {
+    valve_id: String,
+    blob_ref: String,
+}
+#[derive(Deserialize)]
+struct DeleteById {
+    id: String,
 }
 #[derive(Deserialize)]
 struct RegisterMaintenance {
@@ -949,5 +1105,67 @@ mod tests {
             Err("forbidden".to_string())
         );
         assert!(state.valves.is_empty());
+    }
+
+    #[test]
+    fn completed_order_cannot_be_deleted_but_pending_order_can() {
+        let mut state = ApplicationState::default();
+        let create = command(
+            Role::Chefe,
+            serde_json::json!({"zone":"A","description":"Inspect","priority":"normal"}),
+        );
+        state
+            .execute(commands::CREATE_SERVICE_ORDER, "c1", "idem-1", 1, &create)
+            .unwrap();
+        let delete = command(Role::Chefe, serde_json::json!({"id":"order-c1"}));
+        state
+            .execute(commands::DELETE_SERVICE_ORDER, "c2", "idem-2", 2, &delete)
+            .unwrap();
+        assert!(state.service_orders.is_empty());
+        assert_eq!(
+            state.audit_events.last().unwrap().operation,
+            commands::DELETE_SERVICE_ORDER
+        );
+
+        state
+            .execute(commands::CREATE_SERVICE_ORDER, "c3", "idem-3", 3, &create)
+            .unwrap();
+        state.service_orders[0].status = ServiceOrderStatus::Completed;
+        let delete_completed = command(Role::Chefe, serde_json::json!({"id":"order-c3"}));
+        assert_eq!(
+            state.execute(
+                commands::DELETE_SERVICE_ORDER,
+                "c4",
+                "idem-4",
+                4,
+                &delete_completed,
+            ),
+            Err("completed_order_cannot_be_deleted".to_string())
+        );
+    }
+
+    #[test]
+    fn valve_photo_is_associated_by_immutable_valve_id() {
+        let mut state = ApplicationState::default();
+        let create = command(Role::Chefe, serde_json::json!({"tag":"V1","zone":"A"}));
+        state
+            .execute(commands::CREATE_VALVE, "c1", "idem-1", 1, &create)
+            .unwrap();
+        let add = command(
+            Role::Admin,
+            serde_json::json!({"valve_id":"valve-c1","blob_ref":"valves/asset.png"}),
+        );
+        state
+            .execute(commands::ADD_VALVE_PHOTO, "c2", "idem-2", 2, &add)
+            .unwrap();
+        assert_eq!(state.valve_photos[0].valve_id, "valve-c1");
+        let remove = command(
+            Role::Admin,
+            serde_json::json!({"id":state.valve_photos[0].id}),
+        );
+        state
+            .execute(commands::DELETE_VALVE_PHOTO, "c3", "idem-3", 3, &remove)
+            .unwrap();
+        assert!(state.valve_photos.is_empty());
     }
 }

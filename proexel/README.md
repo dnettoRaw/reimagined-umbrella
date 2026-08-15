@@ -6,6 +6,8 @@ runtime boundary and keeps PROEXEL business rules outside `core/AppCore-Runtime`
 ## Layout
 
 - `apps/service`: AppCore-hosted application service.
+- `apps/web`: Next.js user interface, authentication/session boundary, and
+  server-side AppCore transport adapter.
 - `crates/proexel-domain`: product aggregates, value objects and policies.
 - `crates/proexel-application`: commands, queries, DTO boundaries and RBAC.
 - `crates/proexel-infrastructure`: storage, audit, sync and external adapters.
@@ -22,8 +24,13 @@ token per AppCore capability, starts the Rust service, and starts Next.js:
 
 The launcher prints a one-time local administrator login. Open
 `http://localhost:3000/auth/login`. Configure `PROEXEL_AUTH_USERS` to exercise
-the `admin`, `chefe`, `compras`, and `tecnico` roles. Local canonical state is persisted at
+the `admin`, `chefe`, `compras`, and `tecnico` roles. Local canonical state is
+persisted at
 `proexel/apps/service/target/runtime/storage/proexel-state-v1.json`.
+
+The interface is fully localized in Portuguese, English, Spanish, and French.
+Users can change language from the login page or authenticated header; the
+preference is stored in the `proexel_locale` cookie.
 
 ## Checks
 
@@ -36,7 +43,9 @@ For the web application:
 ```bash
 cd proexel/apps/web
 npm run check
+npx tsc --noEmit
 npm run build
+npm audit --audit-level=high
 ```
 
 ## Local AppCore smoke test
@@ -75,7 +84,8 @@ curl -H "Authorization: Bearer $TOKEN" \
 ## Legacy migration
 
 Prepare a JSON bundle with the top-level collections documented in
-`docs/migration-runbook.md`, then dry-run it before writing the canonical state:
+[`../docs/migration-runbook.md`](../docs/migration-runbook.md), then dry-run it
+before writing the canonical state:
 
 ```bash
 cargo run --manifest-path proexel/Cargo.toml -p proexel-migration --bin proexel-migrate -- \
@@ -89,5 +99,8 @@ cargo run --manifest-path proexel/Cargo.toml -p proexel-migration --bin proexel-
 
 Use `proexel/fixtures/legacy-example.json` as the input-contract reference.
 
-Operational backup, restore, migration, and troubleshooting procedures live in
-`docs/operations.md` and `docs/migration-runbook.md`.
+## Documentation
+
+The maintained documentation index is [`../docs/README.md`](../docs/README.md).
+It links architecture, configuration, RBAC, deployment, backup/restore,
+migration, troubleshooting, release status, and functional parity.

@@ -1,6 +1,7 @@
 # PROEXEL RBAC matrix
 
-Status: confirmed from legacy UI and SQL scripts, 2026-08-13.
+Status: legacy evidence confirmed 2026-08-13; implementation reviewed
+2026-08-15.
 
 ## Roles
 
@@ -60,11 +61,43 @@ The Supabase RLS production script is much broader than UI RBAC:
 
 Evidence: `scripts/supabase-rls-production.sql:22`.
 
-## Target enforcement rules
+## Implemented application matrix
 
-- Rebuild permissions must be enforced in application/backend command/query handlers.
-- UI visibility can mirror permissions, but must not be the only security boundary.
-- Restock create should be generalized as `restock.create_suggestion` for technicians; admin/chefe/compras may need separate manual purchasing commands.
-- Supplier access should be decided explicitly. Legacy supplier UI is admin-only even though prompt originally mentioned compradores.
-- Audit read is not the same as maintenance history; add a real audit/history permission split.
-- Denied command/query attempts should be auditable where practical.
+The following matrix is enforced by
+`proexel/crates/proexel-application/src/permissions.rs`. Unknown permissions are
+denied by default.
+
+| Permission | admin | chefe | compras | tecnico |
+|---|---:|---:|---:|---:|
+| `valve.read` | Allow | Allow | Deny | Allow |
+| `valve.create` | Allow | Allow | Deny | Deny |
+| `valve.update_technical_fields` | Allow | Deny | Deny | Deny |
+| `valve.update_photo` | Allow | Deny | Deny | Deny |
+| `maintenance.read` | Allow | Allow | Deny | Allow |
+| `maintenance.register` | Allow | Allow | Deny | Allow |
+| `order.read` | Allow | Allow | Deny | Allow |
+| `order.create`, `order.change_status`, `order.delete` | Allow | Allow | Deny | Deny |
+| `restock.create_suggestion` | Deny | Deny | Deny | Allow |
+| `restock.read` | Allow | Allow | Allow | Deny |
+| `restock.approve_reject`, `restock.delete` | Allow | Allow | Deny | Deny |
+| `stock.read`, `stock.add_or_increment`, `stock.adjust_quantity`, `stock.delete` | Allow | Allow | Allow | Deny |
+| `supplier.read`, `supplier.create_update_delete` | Allow | Deny | Deny | Deny |
+| `report.read`, `audit.read` | Allow | Allow | Deny | Deny |
+| `admin.manage` | Allow | Deny | Deny | Deny |
+
+This table describes policy decisions, not a claim that every listed legacy
+action has a registered command. The current capability manifest does not
+register order, restock, or stock deletion commands; those workflows remain
+open in the functional parity checklist.
+
+## Enforcement rules
+
+- Application command/query handlers enforce permissions independently of the
+  UI.
+- Next.js route protection and command proxy checks mirror the backend matrix;
+  hidden navigation is only a convenience layer.
+- Supplier access remains admin-only, matching the observed legacy UI until a
+  product decision changes it.
+- `audit.read` is separate from `maintenance.read`; the rebuild includes a real
+  audit view for admin and chefe.
+- Auditing denied command/query attempts remains pending.

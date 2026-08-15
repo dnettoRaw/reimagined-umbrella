@@ -86,17 +86,13 @@ are concentrated in `src/lib/useSupabase.js`.
 - Offline local writes are not synced or conflict-aware. New local-first design needs explicit outbox/conflict policy.
 - RLS scripts permit broad anonymous reads/writes on operational tables. New RBAC must be application-enforced and not rely on UI button hiding.
 
-## Functional parity checklist
+## Functional parity gate
 
-- [x] Read legacy `src/App.jsx`.
-- [x] Read legacy `src/lib/useSupabase.js`.
-- [x] Confirm Supabase tables, RPC and storage bucket.
-- [x] Confirm legacy route/view/modal inventory.
-- [x] Confirm page-level and key action-level RBAC.
-- [ ] Implement domain policy tests for maintenance health.
-- [ ] Implement idempotent maintenance-with-kit stock debit.
-- [ ] Implement stock non-negative invariant without silent clamping.
-- [ ] Implement valve photo association by immutable valve ID.
-- [ ] Implement central audit event pipeline.
-- [ ] Implement report query parity.
-- [ ] Implement PT/EN/ES localization for primary flows.
+The maintained implementation gate is
+[`functional-parity-checklist.md`](functional-parity-checklist.md). Since this
+discovery map was written, the rebuild has implemented and tested maintenance
+health policy, idempotent maintenance stock debit, the non-negative stock
+invariant, centralized audit events, canonical report datasets, and complete
+PT/EN/ES/FR interface localization. Valve photo upload and durable binary
+storage remain pending; only immutable photo metadata and migration support are
+present.

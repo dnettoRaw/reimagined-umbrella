@@ -20,7 +20,8 @@ The application is split into:
 - `proexel-infrastructure`: storage, audit, sync and external adapters.
 - `proexel-migration`: repeatable import from the legacy Supabase/static data.
 - `apps/service`: AppCore-hosted composition root.
-- `apps/web`: future Next.js admin-dashboard UI.
+- `apps/web`: Next.js admin dashboard, session boundary, and server-side
+  transport adapter.
 
 ## AppCore responsibilities
 
