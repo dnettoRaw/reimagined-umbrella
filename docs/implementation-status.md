@@ -14,7 +14,7 @@ Status verified against code and automated gates on 2026-08-15.
 | Operations | 100% | Stock, purchasing, suppliers, reports, notifications and PDF |
 | Migration | 100% | Deterministic legacy and in-place schema migration paths |
 | Localization | 100% | Typed PT/EN/ES/FR catalogs for all visible product text |
-| Release gates | 100% | Tests, clippy, Biome, TypeScript, build, E2E and npm audit |
+| Release gates | 100% | Structural gate, tests, clippy, Biome, TypeScript, build, E2E and npm audit |
 
 ## Canonical architecture
 
@@ -34,7 +34,8 @@ pending/conflict states or claim remote persistence.
 
 ## Verified gates
 
-- 29 Rust tests passed across domain, application, infrastructure, migration and service.
+- 32 Rust tests passed across domain, application, infrastructure, migration and service.
+- The structural gate enforces production Rust modules at or below 500 lines and declarative-only `mod.rs` files.
 - Clippy passed for every workspace target with warnings denied.
 - Biome and TypeScript passed for the web application.
 - Next.js generated the production route tree without legacy routes.

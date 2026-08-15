@@ -2,16 +2,22 @@ use std::collections::BTreeMap;
 
 use proexel_domain::{
     derive_machine_status, AuditEvent, ComplexityLevel, CustomFieldDefinition, CustomFieldType,
-    InspectionStatus, InstalledComponent, ItemCategory, ItemCategorySnapshot, ItemInspection,
-    Machine, MachineItem, MachineItemSnapshot, MachineSnapshot, MaintenanceGuide,
-    OperationalStatus, PhotoAsset, PhotoOwnerType, PhotoPurpose, ReplacementSpecification,
-    RestockRequest, ServiceOrder, ServiceOrderPriority, ServiceOrderStatus, ServiceOrderTask,
-    ServiceOrderTaskStatus, StockItem, StockMovement, Supplier, UserAccount,
+    InspectionStatus, InstalledComponent, ItemCategory, ItemInspection, Machine, MachineItem,
+    MaintenanceGuide, OperationalStatus, PhotoAsset, PhotoOwnerType, PhotoPurpose,
+    ReplacementSpecification, RestockRequest, ServiceOrder, ServiceOrderPriority,
+    ServiceOrderStatus, ServiceOrderTask, ServiceOrderTaskStatus, StockItem, StockMovement,
+    Supplier, UserAccount,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 
-use crate::{ApplicationState, SCHEMA_VERSION};
+use crate::{
+    legacy_support::{
+        category_snapshot, clean, date_to_ms, default_repair_level, hash, insert_optional,
+        item_snapshot, machine_snapshot,
+    },
+    ApplicationState, SCHEMA_VERSION,
+};
 
 const MIGRATED_CATEGORY_ID: &str = "migrated-category-valve";
 
@@ -239,7 +245,7 @@ fn migrate_v1(legacy: LegacyStateV1) -> ApplicationState {
             name: old.tag.clone(),
             code: old.tag,
             code_normalized: old.tag_normalized,
-            complexity_level: ComplexityLevel::new(3).unwrap(),
+            complexity_level: ComplexityLevel::INTERMEDIATE,
             status: OperationalStatus::Unknown,
             position,
             location_description: None,
@@ -448,46 +454,13 @@ fn migrated_category() -> ItemCategory {
         name: "Valve".to_string(),
         description: Some("Category migrated from schema 1".to_string()),
         icon: Some("circle-dot".to_string()),
-        default_complexity_level: ComplexityLevel::new(3).unwrap(),
+        default_complexity_level: ComplexityLevel::INTERMEDIATE,
         maintenance_guide: MaintenanceGuide::default(),
         custom_field_definitions: fields,
         recommended_parts: Vec::new(),
         active: true,
         created_at_ms: 0,
         updated_at_ms: 0,
-    }
-}
-
-fn category_snapshot(category: &ItemCategory) -> ItemCategorySnapshot {
-    ItemCategorySnapshot {
-        id: category.id.clone(),
-        code: category.code.clone(),
-        name: category.name.clone(),
-        guide_version: category.maintenance_guide.version,
-        maintenance_guide: category.maintenance_guide.clone(),
-        guide_reference_photos: Vec::new(),
-    }
-}
-
-fn item_snapshot(item: &MachineItem, category: &ItemCategory) -> MachineItemSnapshot {
-    MachineItemSnapshot {
-        id: item.id.clone(),
-        machine_id: item.machine_id.clone(),
-        category: category_snapshot(category),
-        name: item.name.clone(),
-        code: item.code.clone(),
-        complexity_level: item.complexity_level,
-        location_description: item.location_description.clone(),
-        installed_component: item.installed_component.clone(),
-    }
-}
-
-fn machine_snapshot(machine: &Machine) -> MachineSnapshot {
-    MachineSnapshot {
-        id: machine.id.clone(),
-        code: machine.code.clone(),
-        name: machine.name.clone(),
-        zone: machine.zone.clone(),
     }
 }
 
@@ -521,115 +494,5 @@ fn map_order_status(status: LegacyOrderStatus) -> ServiceOrderStatus {
         LegacyOrderStatus::Pending => ServiceOrderStatus::Pending,
         LegacyOrderStatus::InProgress => ServiceOrderStatus::InProgress,
         LegacyOrderStatus::Completed => ServiceOrderStatus::Completed,
-    }
-}
-
-fn default_repair_level(role: &str) -> ComplexityLevel {
-    ComplexityLevel::new(if matches!(role, "admin" | "chefe") {
-        5
-    } else {
-        3
-    })
-    .unwrap()
-}
-
-fn insert_optional(values: &mut BTreeMap<String, Value>, key: &str, value: Option<String>) {
-    if let Some(value) = clean(value) {
-        values.insert(key.to_string(), json!(value));
-    }
-}
-
-fn clean(value: Option<String>) -> Option<String> {
-    value
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-}
-
-fn date_to_ms(value: &str) -> Option<u64> {
-    let date = value.trim().get(..10)?;
-    let mut parts = date.split('-');
-    let year = parts.next()?.parse::<i32>().ok()?;
-    let month = parts.next()?.parse::<u32>().ok()?;
-    let day = parts.next()?.parse::<u32>().ok()?;
-    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
-        return None;
-    }
-    let year = year - i32::from(month <= 2);
-    let era = if year >= 0 { year } else { year - 399 } / 400;
-    let yoe = year - era * 400;
-    let shifted_month = month as i32 + if month > 2 { -3 } else { 9 };
-    let doy = (153 * shifted_month + 2) / 5 + day as i32 - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    let days = (era * 146_097 + doe - 719_468) as i64;
-    (days >= 0).then_some(days as u64 * 86_400_000)
-}
-
-fn hash(value: &str) -> String {
-    format!(
-        "{:016x}",
-        value
-            .as_bytes()
-            .iter()
-            .fold(0xcbf29ce484222325_u64, |hash, byte| {
-                (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
-            })
-    )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn canonical_v1_state_is_migrated_without_losing_operational_records() {
-        let bytes = serde_json::to_vec(&json!({
-            "schema_version": 1,
-            "valves": [{
-                "id": "v1", "tag": "FV 1", "tag_normalized": "FV 1", "zone": "A",
-                "manufacturer": "Maker", "serial": "S1", "kit_reference": "KIT-1",
-                "seat": null, "dn": "50", "valve_type": "butterfly", "actuator": null,
-                "manufactured_at": null, "last_kit_changed_at": null,
-                "last_maintenance_at": "2026-01-01", "created_at_ms": 1, "updated_at_ms": 2
-            }],
-            "maintenance_records": [{
-                "id": "mt1", "valve_id": "v1", "valve_tag_snapshot": "FV 1",
-                "performed_at": "2026-01-01", "technician": "Tech",
-                "maintenance_type": "preventive", "service": "Inspect", "notes": null,
-                "signature_ref": null, "kit_changed": false, "kit_reference_snapshot": "KIT-1",
-                "stock_consumed": false, "stock_consumption_pending": false,
-                "idempotency_key": "old", "created_at_ms": 3
-            }],
-            "service_orders": [{
-                "id": "o1", "zone": "A", "valve_id": "v1", "valve_tag_snapshot": "FV 1",
-                "description": "Inspect", "priority": "normal", "status": "pending",
-                "created_by": "Chief", "technician": null, "scheduled_for": null,
-                "created_at_ms": 4, "updated_at_ms": 4
-            }],
-            "valve_photos": [{"id":"p1","valve_id":"v1","legacy_tag":"FV 1","blob_ref":"p.jpg"}],
-            "user_accounts": [{
-                "id":"u1","email":"admin@example.com","name":"Admin","role":"admin",
-                "password_hash":"hash","pin_hash":null,"active":true,"auth_version":1,
-                "created_at_ms":0,"updated_at_ms":0
-            }]
-        }))
-        .unwrap();
-
-        let (state, migrated) = ApplicationState::decode_persisted(&bytes).unwrap();
-
-        assert!(migrated);
-        assert_eq!(state.schema_version, 2);
-        assert_eq!(state.machines.len(), 1);
-        assert_eq!(state.machine_items.len(), 1);
-        assert_eq!(state.inspections.len(), 1);
-        assert_eq!(state.service_orders[0].tasks.len(), 1);
-        assert_eq!(state.photos[0].owner_type, PhotoOwnerType::MachineItem);
-        assert_eq!(state.user_accounts[0].maximum_repair_level.get(), 5);
-    }
-
-    #[test]
-    fn current_state_decodes_without_migration() {
-        let bytes = serde_json::to_vec(&ApplicationState::default()).unwrap();
-        let (_, migrated) = ApplicationState::decode_persisted(&bytes).unwrap();
-        assert!(!migrated);
     }
 }

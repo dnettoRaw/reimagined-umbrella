@@ -5,6 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use proexel_infrastructure::JsonFileStore;
 use proexel_migration::{migrate_bundle, LegacyBundle, MigrationReport};
 
+const MAX_LEGACY_INPUT_BYTES: u64 = 64 * 1024 * 1024;
+
 struct Options {
     input: PathBuf,
     state: PathBuf,
@@ -23,7 +25,7 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let options = parse_options(std::env::args().skip(1).collect())?;
-    let bytes = fs::read(&options.input).map_err(|error| format!("input read failed: {error}"))?;
+    let bytes = read_input(&options.input)?;
     let bundle: LegacyBundle =
         serde_json::from_slice(&bytes).map_err(|error| format!("input JSON invalid: {error}"))?;
     let store = JsonFileStore::new(&options.state)?;
@@ -46,6 +48,18 @@ fn run() -> Result<(), String> {
         write_report(&path, markdown_report(&report).as_bytes())?;
     }
     Ok(())
+}
+
+fn read_input(path: &PathBuf) -> Result<Vec<u8>, String> {
+    let size = fs::metadata(path)
+        .map_err(|error| format!("input metadata failed: {error}"))?
+        .len();
+    if size > MAX_LEGACY_INPUT_BYTES {
+        return Err(format!(
+            "input too large: {size} > {MAX_LEGACY_INPUT_BYTES}"
+        ));
+    }
+    fs::read(path).map_err(|error| format!("input read failed: {error}"))
 }
 
 fn parse_options(args: Vec<String>) -> Result<Options, String> {
@@ -103,11 +117,7 @@ fn markdown_report(report: &MigrationReport) -> String {
         report.batch_id, report.checksum, report.dry_run
     );
     for (entity, source) in &report.source_counts {
-        let imported = report
-            .imported_counts
-            .get(entity)
-            .copied()
-            .unwrap_or_default();
+        let imported = report.imported_counts.get(entity).copied().unwrap_or(0);
         output.push_str(&format!("| {entity} | {source} | {imported} |\n"));
     }
     output.push_str("\n## Warnings\n\n");
@@ -123,4 +133,26 @@ fn markdown_report(report: &MigrationReport) -> String {
 
 fn usage() -> String {
     "usage: proexel-migrate --input <legacy.json> --state <state.json> --batch <id> [--dry-run] [--report-json <path>] [--report-markdown <path>]".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oversized_input_is_rejected_before_reading_payload() {
+        let path = std::env::temp_dir().join(format!(
+            "proexel-migration-oversized-{}.json",
+            std::process::id()
+        ));
+        let file = fs::File::create(&path).unwrap();
+        file.set_len(MAX_LEGACY_INPUT_BYTES + 1).unwrap();
+
+        let result = read_input(&path);
+
+        assert!(result
+            .err()
+            .is_some_and(|error| error.starts_with("input too large:")));
+        let _ = fs::remove_file(path);
+    }
 }

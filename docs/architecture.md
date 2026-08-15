@@ -24,6 +24,12 @@ apps/web -> authenticated HTTP capability proxy -> proexel-service
 The boundary test rejects dependencies from application/domain into AppCore or
 the web layer.
 
+Production modules are split by responsibility: domain aggregates, application
+commands, query projections, migration phases and service transport each live in
+separate files. Public re-exports preserve the existing crate API. A repository
+gate rejects production Rust files over 500 lines and non-declarative `mod.rs`
+files.
+
 ## Domain model
 
 ```text
@@ -79,6 +85,11 @@ The separate `proexel-migration` CLI imports legacy exports deterministically an
 maps each legacy valve to a `MachineItem` in a reusable Valve category. Those
 legacy DTO names exist only in migration code.
 
+Canonical state and legacy migration inputs are rejected before reading when
+they exceed 64 MiB. Serialized canonical state is checked before writing. Web
+attachments are limited to 8 MiB, with the multipart request rejected before
+parsing when its declared size exceeds the configured boundary.
+
 The supported deployment is standalone local read/write. Remote sync is not
 configured and the UI does not claim remote success or offline synchronization.
 
@@ -101,6 +112,7 @@ English, Spanish and French. Portuguese is the fallback locale.
 ## Verification
 
 - Rust workspace tests cover policies, commands, storage, migration and query projections.
+- `scripts/check-rust-structure.sh` validates file-size and module-declaration rules.
 - Clippy runs for all targets with warnings denied.
 - Biome, TypeScript and the Next.js production build pass.
 - Playwright runs a real isolated AppCore stack and completes the machine workflow.

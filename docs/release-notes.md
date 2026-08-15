@@ -30,10 +30,17 @@
 - Updated the local launcher to issue tokens for every schema-v2 capability.
 - Replaced the browser workflow with a complete machine/category/order/inspection
   scenario against an isolated real AppCore stack.
+- Split oversized Rust modules into responsibility-specific domain, command,
+  query, migration and transport modules while preserving public APIs.
+- Added a structural gate for the 500-line production-file limit and declarative
+  `mod.rs` files.
+- Added pre-read limits for canonical state, migration input and web attachments,
+  with explicit errors instead of silent serialization or payload fallbacks.
 
 ## Quality evidence
 
-- Rust workspace tests: 29 passed.
+- Rust workspace tests: 32 passed.
+- Rust structural gate: passed.
 - Clippy all targets with warnings denied: passed.
 - Biome, TypeScript and Next.js production build: passed.
 - Playwright isolated integration workflow: passed.

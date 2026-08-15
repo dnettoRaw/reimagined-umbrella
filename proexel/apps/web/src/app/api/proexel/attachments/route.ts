@@ -5,7 +5,7 @@ import { getCurrentSession } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const runtime = "nodejs";
@@ -26,9 +26,16 @@ const KINDS: AttachmentKind[] = [
   "replacement-photos",
 ];
 
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+const MAX_MULTIPART_BYTES = MAX_ATTACHMENT_BYTES + 64 * 1024;
+
 export async function POST(request: Request) {
   const session = await getCurrentSession();
   if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_MULTIPART_BYTES) {
+    return NextResponse.json({ error: "attachment_too_large" }, { status: 413 });
+  }
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
   const kind = form?.get("kind");
@@ -38,8 +45,7 @@ export async function POST(request: Request) {
   const permission = kind === "inspection-photos" ? "inspection.execute" : "photo.manage_reference";
   if (!can(permission, session.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const spec = TYPES[file.type as keyof typeof TYPES];
-  const maxBytes = 8 * 1024 * 1024;
-  if (!spec || file.size === 0 || file.size > maxBytes) {
+  if (!spec || file.size === 0 || file.size > MAX_ATTACHMENT_BYTES) {
     return NextResponse.json({ error: "invalid_attachment" }, { status: 400 });
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -62,7 +68,12 @@ export async function GET(request: Request) {
   const permission = kind === "inspection-photos" ? "inspection.read" : "machine.read";
   if (!can(permission, session.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   try {
-    const bytes = await readFile(/* turbopackIgnore: true */ resolveAttachment(ref));
+    const source = resolveAttachment(ref);
+    const metadata = await stat(/* turbopackIgnore: true */ source);
+    if (metadata.size > MAX_ATTACHMENT_BYTES) {
+      return NextResponse.json({ error: "attachment_too_large" }, { status: 413 });
+    }
+    const bytes = await readFile(/* turbopackIgnore: true */ source);
     return new NextResponse(bytes, {
       headers: {
         "cache-control": "private, max-age=300",

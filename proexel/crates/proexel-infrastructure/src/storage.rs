@@ -5,6 +5,8 @@ use std::sync::{Arc, Mutex};
 
 use proexel_application::ApplicationState;
 
+pub const MAX_STATE_FILE_BYTES: u64 = 64 * 1024 * 1024;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SchemaVersion(pub u32);
 
@@ -71,6 +73,14 @@ fn load_state(path: &Path) -> Result<ApplicationState, String> {
         return Ok(ApplicationState::default());
     }
     secure_file(path)?;
+    let size = fs::metadata(path)
+        .map_err(|error| format!("storage_metadata_failed: {error}"))?
+        .len();
+    if size > MAX_STATE_FILE_BYTES {
+        return Err(format!(
+            "storage_file_too_large: {size} > {MAX_STATE_FILE_BYTES}"
+        ));
+    }
     let bytes = fs::read(path).map_err(|error| format!("storage_read_failed: {error}"))?;
     let (state, migrated) = ApplicationState::decode_persisted(&bytes)?;
     if migrated {
@@ -93,6 +103,12 @@ fn persist_state(path: &Path, state: &ApplicationState) -> Result<(), String> {
     let temporary = path.with_extension("json.tmp");
     let bytes = serde_json::to_vec_pretty(state)
         .map_err(|error| format!("storage_encode_failed: {error}"))?;
+    if bytes.len() as u64 > MAX_STATE_FILE_BYTES {
+        return Err(format!(
+            "storage_state_too_large: {} > {MAX_STATE_FILE_BYTES}",
+            bytes.len()
+        ));
+    }
     let mut file = OpenOptions::new()
         .create(true)
         .truncate(true)
@@ -198,6 +214,23 @@ mod tests {
                 .schema_version,
             202
         );
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn oversized_state_is_rejected_before_reading_payload() {
+        let path = std::env::temp_dir().join(format!(
+            "proexel-store-oversized-{}.json",
+            std::process::id()
+        ));
+        let file = fs::File::create(&path).unwrap();
+        file.set_len(MAX_STATE_FILE_BYTES + 1).unwrap();
+
+        let result = JsonFileStore::new(&path);
+
+        assert!(result
+            .err()
+            .is_some_and(|error| error.starts_with("storage_file_too_large:")));
         let _ = fs::remove_file(path);
     }
 }

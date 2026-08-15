@@ -37,7 +37,11 @@ preference is stored in the `proexel_locale` cookie.
 
 ```bash
 cargo test --manifest-path proexel/Cargo.toml
+./proexel/scripts/check-rust-structure.sh
 ```
+
+The structural check covers production Rust in PROEXEL and AppCore. It rejects
+files over 500 lines and keeps `mod.rs` limited to declarations and re-exports.
 
 For the web application:
 
@@ -58,6 +62,8 @@ Run the isolated, ephemeral browser workflow from the repository root:
 Photo bytes default to
 `proexel/apps/service/target/runtime/attachments`; set
 `PROEXEL_ATTACHMENTS_DIR` to an absolute private path in deployed environments.
+Each attachment is limited to 8 MiB. Canonical state and migration input files
+are limited to 64 MiB and are size-checked before being loaded into memory.
 
 ## Local AppCore smoke test
 
