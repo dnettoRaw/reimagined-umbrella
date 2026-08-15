@@ -39,7 +39,7 @@
 
 ## Quality evidence
 
-- Rust workspace tests: 32 passed.
+- Rust workspace tests: 33 passed.
 - Rust structural gate: passed.
 - Clippy all targets with warnings denied: passed.
 - Biome, TypeScript and Next.js production build: passed.

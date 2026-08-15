@@ -34,7 +34,7 @@ pending/conflict states or claim remote persistence.
 
 ## Verified gates
 
-- 32 Rust tests passed across domain, application, infrastructure, migration and service.
+- 33 Rust tests passed across domain, application, infrastructure, migration and service.
 - The structural gate enforces production Rust modules at or below 500 lines and declarative-only `mod.rs` files.
 - Clippy passed for every workspace target with warnings denied.
 - Biome and TypeScript passed for the web application.

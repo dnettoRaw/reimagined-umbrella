@@ -102,15 +102,14 @@ jobs:
 
       - name: Build optimized binaries
         working-directory: proexel
-        run: cargo build --workspace --release --locked
+        run: cargo build --package proexel-service --release --locked
 
-      - name: Stage Rust binaries
+      - name: Stage all-in-one service
         working-directory: proexel
         shell: bash
         run: |
           mkdir -p release/rust
           cp "target/release/proexel-service${{ matrix.executable_suffix }}" release/rust/
-          cp "target/release/proexel-migrate${{ matrix.executable_suffix }}" release/rust/
 
       - name: Package Unix Rust binaries
         if: runner.os != 'Windows'

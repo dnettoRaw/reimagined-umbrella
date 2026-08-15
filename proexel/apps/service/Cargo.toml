@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 appcore-bin = { path = "../../../core/AppCore-Runtime/crates/appcore-bin", default-features = false }
+appcore-security = { path = "../../../core/AppCore-Runtime/crates/appcore-security" }
 proexel-application.workspace = true
 proexel-domain.workspace = true
 proexel-infrastructure.workspace = true

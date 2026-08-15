@@ -80,6 +80,13 @@ Photo bytes default to
 Each attachment is limited to 8 MiB. Canonical state and migration input files
 are limited to 64 MiB and are size-checked before being loaded into memory.
 
+Each platform release package contains only the all-in-one `proexel-service`
+executable. Application and deployment defaults are embedded in the binary. On
+first start it materializes its local runtime configuration, creates a private
+runtime secret and stores canonical data under `target/runtime` beside the
+executable. Explicit AppCore manifest environment variables still override the
+embedded defaults.
+
 ## Local AppCore smoke test
 
 Generate the local runtime secret before starting the service. AppCore writes
