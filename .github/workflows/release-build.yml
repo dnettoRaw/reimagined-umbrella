@@ -173,6 +173,7 @@ jobs:
       - name: Publish release and assets
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: release-${{ github.run_number }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
