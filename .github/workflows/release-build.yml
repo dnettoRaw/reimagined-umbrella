@@ -150,3 +150,38 @@ jobs:
           path: proexel/apps/web/release/proexel-web-linux-x64.tar.gz
           if-no-files-found: error
           retention-days: 30
+
+  publish:
+    name: Publish GitHub release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release'
+    needs:
+      - rust
+      - web
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: proexel-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release and assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: release-${{ github.run_number }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/*.tar.gz --clobber
+            gh release edit "$RELEASE_TAG" --latest
+          else
+            gh release create "$RELEASE_TAG" release-assets/*.tar.gz \
+              --target "$GITHUB_SHA" \
+              --title "PROEXEL release build #${GITHUB_RUN_NUMBER}" \
+              --generate-notes \
+              --latest
+          fi
