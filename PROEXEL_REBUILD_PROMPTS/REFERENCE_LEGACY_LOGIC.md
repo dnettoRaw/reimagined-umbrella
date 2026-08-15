@@ -1,4 +1,4 @@
-# Referência rápida — lógica observada no PROEXEL antigo
+# Referência rápida - lógica observada no PROEXEL antigo - CONCLUÍDO 100%
 
 Este arquivo é uma orientação para o agente, não substitui a leitura do código.
 

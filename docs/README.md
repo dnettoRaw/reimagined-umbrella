@@ -1,4 +1,4 @@
-# PROEXEL documentation
+# PROEXEL documentation - CONCLUÍDO 100%
 
 This directory describes the rebuilt PROEXEL application. Paths and commands
 assume the repository root as the current directory unless stated otherwise.
@@ -42,5 +42,5 @@ assume the repository root as the current directory unless stated otherwise.
 - Canonical state schema:
   `proexel/crates/proexel-application/src/state.rs`
 
-The `PROEXEL_REBUILD_PROMPTS/` directory is the original delivery brief. It is
-not the operational documentation for the resulting application.
+The `PROEXEL_REBUILD_PROMPTS/` directory records the completed delivery phases.
+This directory is the operational documentation for the resulting application.

@@ -11,7 +11,13 @@ export async function getCurrentSession(): Promise<ProexelSession | null> {
   if (!session) return null;
   const identity = await resolveIdentity({ id: session.sub });
   if (identity === undefined) return session;
-  if (!identity?.active || identity.auth_version !== session.ver || identity.role !== session.role) return null;
+  if (
+    !identity?.active ||
+    identity.auth_version !== session.ver ||
+    identity.role !== session.role ||
+    identity.maximum_repair_level !== session.maximum_repair_level
+  )
+    return null;
   return session;
 }
 

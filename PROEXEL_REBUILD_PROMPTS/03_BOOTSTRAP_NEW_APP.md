@@ -42,7 +42,7 @@ Entregue imediatamente um fluxo real mínimo:
 2. storage/migrations inicializam;
 3. endpoint/command de health funciona;
 4. UI carrega shell PROEXEL;
-5. UI consegue fazer uma query real de lista de válvulas (mesmo que banco esteja vazio);
+5. UI consegue fazer uma query real de lista de máquinas e categorias (mesmo com estado vazio);
 6. estado vazio é bem desenhado, sem mocks permanentes.
 
 Rode build/lint/tests.

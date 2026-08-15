@@ -13,7 +13,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
   const [, report, { t, locale }] = await Promise.all([requirePermission("report.read"), getReports(), getI18n()]);
-  const byZone = report.by_zone.toSorted((a, b) => b.critical - a.critical);
+  const byZone = report.by_zone.toSorted((left, right) => right.critical_items - left.critical_items);
+  const critical =
+    (report.overview.machine_items.by_status.critical ?? 0) +
+    (report.overview.machine_items.by_status.maintenance_required ?? 0);
   return (
     <div>
       <PageHeader
@@ -28,53 +31,61 @@ export default async function ReportsPage() {
             <CardDescription>{t("reports.currentIndicators")}</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-4">
-            <ReportMetric label={t("overview.valves")} value={report.overview.valves.total} />
-            <ReportMetric label={t("overview.critical")} value={report.overview.valves.critical} />
-            <ReportMetric label={t("overview.openOrders")} value={report.overview.orders.open} />
-            <ReportMetric label={t("overview.lowStock")} value={report.overview.stock.low} />
+            <Metric label={t("nav.machines")} value={report.overview.machines.total} />
+            <Metric label={t("common.components")} value={report.overview.machine_items.total} />
+            <Metric label={t("overview.critical")} value={critical} />
+            <Metric label={t("overview.lowStock")} value={report.overview.stock.low} />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>{t("reports.byZone")}</CardTitle>
-            <CardDescription>{t("reports.byZoneDescription")}</CardDescription>
+            <CardDescription>{t("reports.zoneComposition")}</CardDescription>
           </CardHeader>
           <CardContent>
-            {byZone.length === 0 ? (
+            {byZone.length ? (
+              <div className="space-y-3">
+                {byZone.map((row) => (
+                  <div key={row.zone} className="grid grid-cols-[1fr_auto_auto] gap-4 border-b pb-2 text-sm">
+                    <span>{row.zone}</span>
+                    <span>
+                      {row.items} {t("common.components")}
+                    </span>
+                    <strong className={row.critical_items ? "text-destructive" : ""}>
+                      {row.critical_items} {t("common.critical")}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
               <div className="flex min-h-32 items-center justify-center text-muted-foreground">
                 <BarChart3 className="mr-2 size-5" />
                 {t("common.noData")}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {byZone.map((row) => (
-                  <div key={row.zone} className="flex items-center justify-between border-b pb-2 text-sm">
-                    <span>{row.zone}</span>
-                    <span>{t("reports.criticalCount", { critical: row.critical, total: row.total })}</span>
-                  </div>
-                ))}
               </div>
             )}
           </CardContent>
         </Card>
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>{t("reports.recentMaintenance")}</CardTitle>
+            <CardTitle>{t("reports.recentInspections")}</CardTitle>
             <CardDescription>{t("reports.latest")}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="divide-y">
-              {report.recent_maintenance.slice(0, 10).map((item) => (
-                <div key={item.id} className="grid gap-1 py-3 sm:grid-cols-[140px_140px_1fr]">
+              {report.recent_inspections.slice(0, 10).map((inspection) => (
+                <div key={inspection.id} className="grid gap-1 py-3 sm:grid-cols-[180px_180px_1fr_auto]">
                   <span>
-                    {new Intl.DateTimeFormat(INTL_LOCALES[locale]).format(new Date(`${item.performed_at}T00:00:00`))}
+                    {new Intl.DateTimeFormat(INTL_LOCALES[locale], { dateStyle: "short", timeStyle: "short" }).format(
+                      new Date(inspection.completed_at_ms ?? inspection.started_at_ms),
+                    )}
                   </span>
-                  <strong>{item.valve_tag_snapshot}</strong>
-                  <span>{item.service}</span>
+                  <strong>{inspection.operator_name}</strong>
+                  <span>{inspection.maintenance_action ?? inspection.notes ?? "-"}</span>
+                  <span>{t(`status.${inspection.status_after ?? inspection.status_before}`)}</span>
                 </div>
               ))}
-              {report.recent_maintenance.length === 0 ? (
-                <p className="text-muted-foreground text-sm">{t("reports.noMaintenance")}</p>
+              {report.recent_inspections.length === 0 ? (
+                <p className="text-muted-foreground text-sm">{t("reports.noInspections")}</p>
               ) : null}
             </div>
           </CardContent>
@@ -84,7 +95,7 @@ export default async function ReportsPage() {
   );
 }
 
-function ReportMetric({ label, value }: { readonly label: string; readonly value: number }) {
+function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div>
       <div className="text-muted-foreground text-sm">{label}</div>

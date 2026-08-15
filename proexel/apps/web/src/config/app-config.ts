@@ -8,6 +8,6 @@ export const APP_CONFIG = {
   copyright: `Copyright ${currentYear}, PROEXEL.`,
   meta: {
     title: "PROEXEL",
-    description: "Maintenance operations dashboard for valves, service orders, stock, purchasing and audit.",
+    description: "Industrial asset, guided maintenance, service order, stock, purchasing and audit management.",
   },
 };

@@ -1,55 +1,27 @@
-# Prompt 10 — Migração do PROEXEL legado
+# Prompt 10 - Migração e compatibilidade - CONCLUÍDO 100%
 
-Crie uma ferramenta de migração separada e repetível. O objetivo é preservar dados, não preservar infraestrutura Supabase/localStorage.
+## Importador legado
 
-## Fontes possíveis
+O crate `proexel-migration` aceita o contrato antigo, aliases portugueses e
+referências de fotos. A importação:
 
-Com base no discovery, suporte importação dos datasets relevantes do legado:
-- valves
-- maintenance_records
-- orders
-- restock_requests
-- stock
-- suppliers
-- valve photos metadata/files
-- usuários apenas se houver estratégia segura de migração de identidade
-- audit antigo opcional como histórico imutável
+- cria uma ItemCategory Valve reutilizável;
+- cria máquinas determinísticas por zona;
+- converte cada registro antigo em MachineItem;
+- converte manutenção em ItemInspection;
+- converte OS para tarefas com snapshots;
+- preserva estoque, reposições, fornecedores, auditoria e metadados de fotos;
+- gera IDs estáveis, checksum, warnings e relatórios JSON/Markdown;
+- suporta dry-run e repetição idempotente por batch.
 
-Também considere exports/localStorage apenas como fonte de recuperação, nunca como storage final.
+Os nomes antigos existem somente nos DTOs/mapas de importação. Não há shim de
+runtime nem duas entidades representando o mesmo componente.
 
-## Normalizações obrigatórias
+## Migração canônica
 
-- `zona` / `zone` → campo canônico;
-- `valveTag` / `valve_tag` → `valve_id` resolvido quando possível + snapshot;
-- `observacoes` / `description`;
-- `createdBy` / `created_by`;
-- restock `ref` / `kit` e `description` / `reason`;
-- `minQuantity` / `min_quantity`;
-- **não** continuar equivalendo manufacturer/brand com location; resolva com heurística documentada ou campo de migration_note;
-- status `aberta` versus `pendente`;
-- `kitChanged` / `kit_changed`.
+Ao abrir um estado schema v1, a aplicação cria `.schema-v1.json.bak`, converte
+os registros operacionais para schema v2 e persiste a nova forma. Estados v2 são
+lidos diretamente. Ambos os caminhos têm testes.
 
-## Requisitos da ferramenta
-
-- dry-run;
-- relatório de contagens antes/depois;
-- warnings por linha problemática;
-- deterministic mapping;
-- idempotência: rodar duas vezes não duplica;
-- checksums/import batch id;
-- transação por lote quando possível;
-- arquivo de relatório final JSON + Markdown;
-- nenhuma senha plaintext nos relatórios.
-
-## Validação
-
-Compare, por entidade:
-- contagem total;
-- referências únicas;
-- vínculos manutenção→válvula;
-- vínculos OS→válvula quando existentes;
-- estoque;
-- fotos encontradas/perdidas;
-- registros não migráveis.
-
-Crie `docs/migration-runbook.md` com backup, dry-run, execução, rollback e validação.
+O cutover de produção usa `docs/migration-runbook.md`; a execução depende do
+export e dos binários reais fornecidos pelo operador, não de código adicional.

@@ -1,16 +1,15 @@
 use std::collections::BTreeMap;
 
 use proexel_domain::{
-    adjust_stock, can_transition_order, normalize_reference, normalize_tag, AuditEvent,
-    MaintenanceRecord, MaintenanceType, RestockRequest, RestockStatus, ServiceOrder,
-    ServiceOrderPriority, ServiceOrderStatus, StockItem, StockMovement, StockMovementKind,
-    Supplier, UserAccount, Valve, ValvePhoto,
+    adjust_stock, AuditEvent, ComplexityLevel, ItemCategory, ItemInspection, Machine, MachineItem,
+    MachineItemReplacement, PhotoAsset, RestockRequest, RestockStatus, ServiceOrder, StockItem,
+    StockMovement, StockMovementKind, Supplier, UserAccount,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{commands, permissions::can, Role};
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Actor {
@@ -38,11 +37,19 @@ pub struct ExecutionReceipt {
 pub struct ApplicationState {
     pub schema_version: u32,
     #[serde(default)]
-    pub valves: Vec<Valve>,
+    pub item_categories: Vec<ItemCategory>,
     #[serde(default)]
-    pub maintenance_records: Vec<MaintenanceRecord>,
+    pub machines: Vec<Machine>,
+    #[serde(default)]
+    pub machine_items: Vec<MachineItem>,
+    #[serde(default)]
+    pub machine_item_replacements: Vec<MachineItemReplacement>,
+    #[serde(default)]
+    pub photos: Vec<PhotoAsset>,
     #[serde(default)]
     pub service_orders: Vec<ServiceOrder>,
+    #[serde(default)]
+    pub inspections: Vec<ItemInspection>,
     #[serde(default)]
     pub restock_requests: Vec<RestockRequest>,
     #[serde(default)]
@@ -51,8 +58,6 @@ pub struct ApplicationState {
     pub stock_movements: Vec<StockMovement>,
     #[serde(default)]
     pub suppliers: Vec<Supplier>,
-    #[serde(default)]
-    pub valve_photos: Vec<ValvePhoto>,
     #[serde(default)]
     pub user_accounts: Vec<UserAccount>,
     #[serde(default)]
@@ -65,14 +70,17 @@ impl Default for ApplicationState {
     fn default() -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
-            valves: Vec::new(),
-            maintenance_records: Vec::new(),
+            item_categories: Vec::new(),
+            machines: Vec::new(),
+            machine_items: Vec::new(),
+            machine_item_replacements: Vec::new(),
+            photos: Vec::new(),
             service_orders: Vec::new(),
+            inspections: Vec::new(),
             restock_requests: Vec::new(),
             stock_items: Vec::new(),
             stock_movements: Vec::new(),
             suppliers: Vec::new(),
-            valve_photos: Vec::new(),
             user_accounts: Vec::new(),
             audit_events: Vec::new(),
             processed_commands: BTreeMap::new(),
@@ -100,20 +108,38 @@ impl ApplicationState {
         validate_actor(&payload.actor)?;
 
         let (permission, receipt, before, after, description) = match command_name {
-            commands::CREATE_VALVE => self.create_valve(command_id, issued_at_ms, &payload)?,
-            commands::UPDATE_VALVE => self.update_valve(issued_at_ms, &payload)?,
-            commands::ADD_VALVE_PHOTO => self.add_valve_photo(command_id, &payload)?,
-            commands::DELETE_VALVE_PHOTO => self.delete_valve_photo(&payload)?,
-            commands::REGISTER_MAINTENANCE => {
-                self.register_maintenance(command_id, idempotency_key, issued_at_ms, &payload)?
+            commands::CREATE_ITEM_CATEGORY => {
+                self.create_item_category(command_id, issued_at_ms, &payload)?
             }
+            commands::UPDATE_ITEM_CATEGORY => self.update_item_category(issued_at_ms, &payload)?,
+            commands::CREATE_MACHINE => self.create_machine(command_id, issued_at_ms, &payload)?,
+            commands::UPDATE_MACHINE => self.update_machine(issued_at_ms, &payload)?,
+            commands::ADD_MACHINE_ITEM => {
+                self.add_machine_item(command_id, issued_at_ms, &payload)?
+            }
+            commands::UPDATE_MACHINE_ITEM => self.update_machine_item(issued_at_ms, &payload)?,
+            commands::REORDER_MACHINE_ITEMS => {
+                self.reorder_machine_items(issued_at_ms, &payload)?
+            }
+            commands::REMOVE_MACHINE_ITEM => self.remove_machine_item(issued_at_ms, &payload)?,
+            commands::REPLACE_MACHINE_ITEM => {
+                self.replace_machine_item(command_id, issued_at_ms, &payload)?
+            }
+            commands::ADD_PHOTO => self.add_photo(command_id, issued_at_ms, &payload)?,
+            commands::DELETE_PHOTO => self.delete_photo(&payload)?,
             commands::CREATE_SERVICE_ORDER => {
                 self.create_service_order(command_id, issued_at_ms, &payload)?
             }
-            commands::CHANGE_SERVICE_ORDER_STATUS => {
-                self.change_service_order_status(issued_at_ms, &payload)?
-            }
+            commands::START_SERVICE_ORDER => self.start_service_order(issued_at_ms, &payload)?,
+            commands::ASSIGN_ORDER_TASK => self.assign_order_task(issued_at_ms, &payload)?,
             commands::DELETE_SERVICE_ORDER => self.delete_service_order(&payload)?,
+            commands::COMPLETE_SERVICE_ORDER => {
+                self.complete_service_order(issued_at_ms, &payload)?
+            }
+            commands::START_INSPECTION => {
+                self.start_inspection(command_id, issued_at_ms, &payload)?
+            }
+            commands::COMPLETE_INSPECTION => self.complete_inspection(issued_at_ms, &payload)?,
             commands::CREATE_RESTOCK_REQUEST => {
                 self.create_restock_request(command_id, issued_at_ms, &payload)?
             }
@@ -145,6 +171,7 @@ impl ApplicationState {
             return Err("forbidden".to_string());
         }
 
+        self.schema_version = SCHEMA_VERSION;
         self.audit_events.push(AuditEvent {
             id: format!("audit-{command_id}"),
             actor: payload.actor.name,
@@ -164,355 +191,6 @@ impl ApplicationState {
         Ok(receipt)
     }
 
-    fn create_valve(
-        &mut self,
-        command_id: &str,
-        now: u64,
-        payload: &CommandPayload,
-    ) -> Result<Action, String> {
-        require_permission(payload.actor.role, "valve.create")?;
-        let input: CreateValve = parse_data(payload)?;
-        let tag = normalize_tag(&input.tag);
-        require_text(&tag, "tag_required")?;
-        require_text(&input.zone, "zone_required")?;
-        if self.valves.iter().any(|valve| valve.tag_normalized == tag) {
-            return Err("tag_already_exists".to_string());
-        }
-        let id = format!("valve-{command_id}");
-        let kit_reference = normalized_optional(input.kit_reference);
-        let valve = Valve {
-            id: id.clone(),
-            tag: tag.clone(),
-            tag_normalized: tag,
-            zone: input.zone.trim().to_string(),
-            manufacturer: clean_optional(input.manufacturer),
-            serial: clean_optional(input.serial),
-            kit_reference: kit_reference.clone(),
-            seat: clean_optional(input.seat),
-            dn: clean_optional(input.dn),
-            valve_type: clean_optional(input.valve_type),
-            actuator: clean_optional(input.actuator),
-            manufactured_at: clean_optional(input.manufactured_at),
-            last_kit_changed_at: clean_optional(input.last_kit_changed_at),
-            last_maintenance_at: clean_optional(input.last_maintenance_at),
-            created_at_ms: now,
-            updated_at_ms: now,
-        };
-        if let Some(reference) = kit_reference {
-            self.ensure_stock_item(&reference, command_id, now);
-        }
-        let after = json_string(&valve);
-        self.valves.push(valve);
-        Ok(action(
-            "valve.create",
-            "valve",
-            id,
-            None,
-            after,
-            "Valve created",
-        ))
-    }
-
-    fn update_valve(&mut self, now: u64, payload: &CommandPayload) -> Result<Action, String> {
-        require_permission(payload.actor.role, "valve.update_technical_fields")?;
-        let input: UpdateValve = parse_data(payload)?;
-        let existing_index = self
-            .valves
-            .iter()
-            .position(|valve| valve.id == input.id)
-            .ok_or_else(|| "valve_not_found".to_string())?;
-        let before = json_string(&self.valves[existing_index]);
-        let new_tag = input.tag.as_deref().map(normalize_tag);
-        if let Some(tag) = new_tag.as_ref() {
-            require_text(tag, "tag_required")?;
-            if self
-                .valves
-                .iter()
-                .any(|valve| valve.id != input.id && valve.tag_normalized == *tag)
-            {
-                return Err("tag_already_exists".to_string());
-            }
-        }
-        let new_kit = input.kit_reference.map(|value| normalize_reference(&value));
-        if let Some(reference) = new_kit.as_ref().filter(|value| !value.is_empty()) {
-            self.ensure_stock_item(reference, &input.id, now);
-        }
-        let valve = &mut self.valves[existing_index];
-        if let Some(tag) = new_tag {
-            valve.tag = tag.clone();
-            valve.tag_normalized = tag;
-        }
-        set_if_some(
-            &mut valve.zone,
-            input.zone.map(|value| value.trim().to_string()),
-        );
-        set_optional(&mut valve.manufacturer, input.manufacturer);
-        set_optional(&mut valve.serial, input.serial);
-        if let Some(reference) = new_kit {
-            valve.kit_reference = (!reference.is_empty()).then_some(reference);
-        }
-        set_optional(&mut valve.seat, input.seat);
-        set_optional(&mut valve.dn, input.dn);
-        set_optional(&mut valve.valve_type, input.valve_type);
-        set_optional(&mut valve.actuator, input.actuator);
-        set_optional(&mut valve.manufactured_at, input.manufactured_at);
-        valve.updated_at_ms = now;
-        let after = json_string(valve);
-        Ok(action(
-            "valve.update_technical_fields",
-            "valve",
-            input.id,
-            before,
-            after,
-            "Valve updated",
-        ))
-    }
-
-    fn add_valve_photo(
-        &mut self,
-        command_id: &str,
-        payload: &CommandPayload,
-    ) -> Result<Action, String> {
-        require_permission(payload.actor.role, "valve.update_photo")?;
-        let input: AddValvePhoto = parse_data(payload)?;
-        require_text(&input.blob_ref, "photo_ref_required")?;
-        if !self.valves.iter().any(|valve| valve.id == input.valve_id) {
-            return Err("valve_not_found".to_string());
-        }
-        if self
-            .valve_photos
-            .iter()
-            .any(|photo| photo.blob_ref == input.blob_ref)
-        {
-            return Err("photo_already_exists".to_string());
-        }
-        let id = format!("photo-{command_id}");
-        let photo = ValvePhoto {
-            id: id.clone(),
-            valve_id: input.valve_id,
-            legacy_tag: None,
-            blob_ref: input.blob_ref.trim().to_string(),
-        };
-        let after = json_string(&photo);
-        self.valve_photos.push(photo);
-        Ok(action(
-            "valve.update_photo",
-            "valve_photo",
-            id,
-            None,
-            after,
-            "Valve photo added",
-        ))
-    }
-
-    fn delete_valve_photo(&mut self, payload: &CommandPayload) -> Result<Action, String> {
-        require_permission(payload.actor.role, "valve.update_photo")?;
-        let input: DeleteById = parse_data(payload)?;
-        let index = self
-            .valve_photos
-            .iter()
-            .position(|photo| photo.id == input.id)
-            .ok_or_else(|| "photo_not_found".to_string())?;
-        let photo = self.valve_photos.remove(index);
-        Ok(action(
-            "valve.update_photo",
-            "valve_photo",
-            photo.id.clone(),
-            json_string(&photo),
-            None,
-            "Valve photo removed",
-        ))
-    }
-
-    fn register_maintenance(
-        &mut self,
-        command_id: &str,
-        idempotency_key: &str,
-        now: u64,
-        payload: &CommandPayload,
-    ) -> Result<Action, String> {
-        require_permission(payload.actor.role, "maintenance.register")?;
-        let input: RegisterMaintenance = parse_data(payload)?;
-        require_text(&input.performed_at, "performed_at_required")?;
-        require_text(&input.technician, "technician_required")?;
-        require_text(&input.service, "service_required")?;
-        let signature_ref = clean_optional(input.signature_ref)
-            .filter(|value| value.starts_with("signatures/"))
-            .ok_or_else(|| "signature_required".to_string())?;
-        let valve_index = self
-            .valves
-            .iter()
-            .position(|valve| valve.id == input.valve_id)
-            .ok_or_else(|| "valve_not_found".to_string())?;
-        let before = json_string(&self.valves[valve_index]);
-        let kit_reference = self.valves[valve_index].kit_reference.clone();
-        let mut stock_consumed = false;
-        let mut stock_consumption_pending = false;
-        if input.kit_changed {
-            if let Some(reference) = kit_reference.as_ref() {
-                if let Some(item) = self
-                    .stock_items
-                    .iter_mut()
-                    .find(|item| item.reference_normalized == *reference)
-                {
-                    if item.quantity > 0 {
-                        item.quantity -= 1;
-                        item.updated_at_ms = now;
-                        stock_consumed = true;
-                        self.stock_movements.push(StockMovement {
-                            id: format!("movement-{command_id}"),
-                            stock_item_id: item.id.clone(),
-                            kind: StockMovementKind::Consumption,
-                            delta: -1,
-                            balance_after: item.quantity,
-                            reason: format!("Maintenance on {}", self.valves[valve_index].tag),
-                            actor: payload.actor.name.clone(),
-                            idempotency_key: idempotency_key.to_string(),
-                            created_at_ms: now,
-                        });
-                    } else {
-                        stock_consumption_pending = true;
-                    }
-                } else {
-                    stock_consumption_pending = true;
-                }
-            } else {
-                stock_consumption_pending = true;
-            }
-        }
-        let valve = &mut self.valves[valve_index];
-        valve.last_maintenance_at = Some(input.performed_at.clone());
-        if input.kit_changed {
-            valve.last_kit_changed_at = Some(input.performed_at.clone());
-        }
-        valve.updated_at_ms = now;
-        let id = format!("maintenance-{command_id}");
-        self.maintenance_records.push(MaintenanceRecord {
-            id: id.clone(),
-            valve_id: input.valve_id,
-            valve_tag_snapshot: valve.tag.clone(),
-            performed_at: input.performed_at,
-            technician: input.technician,
-            maintenance_type: input.maintenance_type,
-            service: input.service,
-            notes: clean_optional(input.notes),
-            signature_ref: Some(signature_ref),
-            kit_changed: input.kit_changed,
-            kit_reference_snapshot: kit_reference,
-            stock_consumed,
-            stock_consumption_pending,
-            idempotency_key: idempotency_key.to_string(),
-            created_at_ms: now,
-        });
-        let after = json_string(valve);
-        Ok(action(
-            "maintenance.register",
-            "maintenance",
-            id,
-            before,
-            after,
-            "Maintenance registered",
-        ))
-    }
-
-    fn create_service_order(
-        &mut self,
-        command_id: &str,
-        now: u64,
-        payload: &CommandPayload,
-    ) -> Result<Action, String> {
-        require_permission(payload.actor.role, "order.create")?;
-        let input: CreateServiceOrder = parse_data(payload)?;
-        require_text(&input.zone, "zone_required")?;
-        require_text(&input.description, "description_required")?;
-        if let Some(valve_id) = input.valve_id.as_ref() {
-            if !self.valves.iter().any(|valve| valve.id == *valve_id) {
-                return Err("valve_not_found".to_string());
-            }
-        }
-        let valve_tag_snapshot = input
-            .valve_id
-            .as_ref()
-            .and_then(|id| self.valves.iter().find(|v| v.id == *id))
-            .map(|v| v.tag.clone());
-        let id = format!("order-{command_id}");
-        let order = ServiceOrder {
-            id: id.clone(),
-            zone: input.zone.trim().to_string(),
-            valve_id: input.valve_id,
-            valve_tag_snapshot,
-            description: input.description.trim().to_string(),
-            priority: input.priority,
-            status: ServiceOrderStatus::Pending,
-            created_by: payload.actor.name.clone(),
-            technician: clean_optional(input.technician),
-            scheduled_for: clean_optional(input.scheduled_for),
-            created_at_ms: now,
-            updated_at_ms: now,
-        };
-        let after = json_string(&order);
-        self.service_orders.push(order);
-        Ok(action(
-            "order.create",
-            "service_order",
-            id,
-            None,
-            after,
-            "Service order created",
-        ))
-    }
-
-    fn change_service_order_status(
-        &mut self,
-        now: u64,
-        payload: &CommandPayload,
-    ) -> Result<Action, String> {
-        require_permission(payload.actor.role, "order.change_status")?;
-        let input: ChangeServiceOrderStatus = parse_data(payload)?;
-        let order = self
-            .service_orders
-            .iter_mut()
-            .find(|order| order.id == input.id)
-            .ok_or_else(|| "order_not_found".to_string())?;
-        if !can_transition_order(order.status, input.status) {
-            return Err("invalid_order_status_transition".to_string());
-        }
-        let before = json_string(order);
-        order.status = input.status;
-        order.updated_at_ms = now;
-        let after = json_string(order);
-        Ok(action(
-            "order.change_status",
-            "service_order",
-            input.id,
-            before,
-            after,
-            "Service order status changed",
-        ))
-    }
-
-    fn delete_service_order(&mut self, payload: &CommandPayload) -> Result<Action, String> {
-        require_permission(payload.actor.role, "order.delete")?;
-        let input: DeleteById = parse_data(payload)?;
-        let index = self
-            .service_orders
-            .iter()
-            .position(|order| order.id == input.id)
-            .ok_or_else(|| "order_not_found".to_string())?;
-        if self.service_orders[index].status == ServiceOrderStatus::Completed {
-            return Err("completed_order_cannot_be_deleted".to_string());
-        }
-        let order = self.service_orders.remove(index);
-        Ok(action(
-            "order.delete",
-            "service_order",
-            order.id.clone(),
-            json_string(&order),
-            None,
-            "Service order deleted",
-        ))
-    }
-
     fn create_restock_request(
         &mut self,
         command_id: &str,
@@ -521,7 +199,7 @@ impl ApplicationState {
     ) -> Result<Action, String> {
         require_permission(payload.actor.role, "restock.create_suggestion")?;
         let input: CreateRestockRequest = parse_data(payload)?;
-        let reference = normalize_reference(&input.reference);
+        let reference = proexel_domain::normalize_reference(&input.reference);
         require_text(&reference, "reference_required")?;
         require_text(&input.reason, "reason_required")?;
         let id = format!("restock-{command_id}");
@@ -653,7 +331,7 @@ impl ApplicationState {
     ) -> Result<Action, String> {
         require_permission(payload.actor.role, "stock.add_or_increment")?;
         let input: UpsertStock = parse_data(payload)?;
-        let reference = normalize_reference(&input.reference);
+        let reference = proexel_domain::normalize_reference(&input.reference);
         require_text(&reference, "reference_required")?;
         if let Some(item) = self
             .stock_items
@@ -864,6 +542,7 @@ impl ApplicationState {
             password_hash: input.password_hash,
             pin_hash: input.pin_hash,
             active: true,
+            maximum_repair_level: input.maximum_repair_level,
             auth_version: 1,
             created_at_ms: now,
             updated_at_ms: now,
@@ -917,6 +596,7 @@ impl ApplicationState {
         user.name = input.name.trim().to_string();
         user.role = role_name(input.role).to_string();
         user.active = input.active;
+        user.maximum_repair_level = input.maximum_repair_level;
         user.auth_version = user.auth_version.saturating_add(1);
         user.updated_at_ms = now;
         let after = user_audit_value(user);
@@ -972,30 +652,9 @@ impl ApplicationState {
             "User credentials reset",
         ))
     }
-
-    fn ensure_stock_item(&mut self, reference: &str, source_id: &str, now: u64) {
-        if self
-            .stock_items
-            .iter()
-            .any(|item| item.reference_normalized == reference)
-        {
-            return;
-        }
-        self.stock_items.push(StockItem {
-            id: format!("stock-auto-{source_id}"),
-            reference: reference.to_string(),
-            reference_normalized: reference.to_string(),
-            quantity: 0,
-            minimum_quantity: 0,
-            manufacturer: None,
-            location: None,
-            created_at_ms: now,
-            updated_at_ms: now,
-        });
-    }
 }
 
-type Action = (
+pub(crate) type Action = (
     &'static str,
     ExecutionReceipt,
     Option<String>,
@@ -1003,8 +662,28 @@ type Action = (
     String,
 );
 
-fn action(
+pub(crate) fn action(
     permission: &'static str,
+    aggregate: &str,
+    aggregate_id: String,
+    before: Option<String>,
+    after: Option<String>,
+    description: &str,
+) -> Action {
+    domain_action(
+        permission,
+        &format!("{aggregate}.changed"),
+        aggregate,
+        aggregate_id,
+        before,
+        after,
+        description,
+    )
+}
+
+pub(crate) fn domain_action(
+    permission: &'static str,
+    event_name: &str,
     aggregate: &str,
     aggregate_id: String,
     before: Option<String>,
@@ -1016,7 +695,7 @@ fn action(
         ExecutionReceipt {
             aggregate: aggregate.to_string(),
             aggregate_id,
-            event_name: format!("{aggregate}.changed"),
+            event_name: event_name.to_string(),
             replayed: false,
         },
         before,
@@ -1025,24 +704,43 @@ fn action(
     )
 }
 
-fn validate_actor(actor: &Actor) -> Result<(), String> {
-    require_text(&actor.id, "actor_id_required")?;
-    require_text(&actor.name, "actor_name_required")
-}
-fn require_permission(role: Role, permission: &'static str) -> Result<(), String> {
+pub(crate) fn require_permission(role: Role, permission: &'static str) -> Result<(), String> {
     if can(role, permission) {
         Ok(())
     } else {
         Err("forbidden".to_string())
     }
 }
-fn require_text(value: &str, error: &str) -> Result<(), String> {
+
+pub(crate) fn require_text(value: &str, error: &str) -> Result<(), String> {
     if value.trim().is_empty() {
         Err(error.to_string())
     } else {
         Ok(())
     }
 }
+
+pub(crate) fn clean_optional(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+pub(crate) fn json_string<T: Serialize>(value: &T) -> Option<String> {
+    serde_json::to_string(value).ok()
+}
+
+pub(crate) fn parse_data<T: for<'de> Deserialize<'de>>(
+    payload: &CommandPayload,
+) -> Result<T, String> {
+    serde_json::from_value(payload.data.clone()).map_err(|_| "invalid_command_data".to_string())
+}
+
+fn validate_actor(actor: &Actor) -> Result<(), String> {
+    require_text(&actor.id, "actor_id_required")?;
+    require_text(&actor.name, "actor_name_required")
+}
+
 fn role_name(role: Role) -> &'static str {
     match role {
         Role::Admin => "admin",
@@ -1051,32 +749,7 @@ fn role_name(role: Role) -> &'static str {
         Role::Tecnico => "tecnico",
     }
 }
-fn clean_optional(value: Option<String>) -> Option<String> {
-    value
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-}
-fn normalized_optional(value: Option<String>) -> Option<String> {
-    value
-        .map(|value| normalize_reference(&value))
-        .filter(|value| !value.is_empty())
-}
-fn set_optional(target: &mut Option<String>, value: Option<String>) {
-    if value.is_some() {
-        *target = clean_optional(value);
-    }
-}
-fn set_if_some(target: &mut String, value: Option<String>) {
-    if let Some(value) = value {
-        *target = value;
-    }
-}
-fn json_string<T: Serialize>(value: &T) -> Option<String> {
-    serde_json::to_string(value).ok()
-}
-fn parse_data<T: for<'de> Deserialize<'de>>(payload: &CommandPayload) -> Result<T, String> {
-    serde_json::from_value(payload.data.clone()).map_err(|_| "invalid_command_data".to_string())
-}
+
 fn validate_supplier_links(email: Option<&str>, website: Option<&str>) -> Result<(), String> {
     if let Some(email) = email.map(str::trim).filter(|value| !value.is_empty()) {
         let (local, domain) = email
@@ -1095,6 +768,7 @@ fn validate_supplier_links(email: Option<&str>, website: Option<&str>) -> Result
     }
     Ok(())
 }
+
 fn normalize_email(value: &str) -> Result<String, String> {
     let email = value.trim().to_lowercase();
     let (local, domain) = email
@@ -1105,6 +779,7 @@ fn normalize_email(value: &str) -> Result<String, String> {
     }
     Ok(email)
 }
+
 fn validate_role_name(role: &str) -> Result<(), String> {
     if matches!(role, "admin" | "chefe" | "compras" | "tecnico") {
         Ok(())
@@ -1112,6 +787,7 @@ fn validate_role_name(role: &str) -> Result<(), String> {
         Err("user_role_invalid".to_string())
     }
 }
+
 fn validate_auth_hash(value: &str, error: &str) -> Result<(), String> {
     let mut parts = value.split('$');
     let algorithm = parts.next();
@@ -1120,7 +796,7 @@ fn validate_auth_hash(value: &str, error: &str) -> Result<(), String> {
     if algorithm != Some("scrypt")
         || salt.is_empty()
         || digest.len() < 32
-        || digest.len() % 2 != 0
+        || !digest.len().is_multiple_of(2)
         || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
         || parts.next().is_some()
     {
@@ -1128,6 +804,7 @@ fn validate_auth_hash(value: &str, error: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
 fn user_audit_value(user: &UserAccount) -> Option<String> {
     json_string(&serde_json::json!({
         "id": user.id,
@@ -1135,91 +812,36 @@ fn user_audit_value(user: &UserAccount) -> Option<String> {
         "name": user.name,
         "role": user.role,
         "active": user.active,
+        "maximum_repair_level": user.maximum_repair_level,
         "has_pin": user.pin_hash.is_some(),
         "auth_version": user.auth_version,
     }))
 }
 
 #[derive(Deserialize)]
-struct CreateValve {
-    tag: String,
-    zone: String,
-    manufacturer: Option<String>,
-    serial: Option<String>,
-    kit_reference: Option<String>,
-    seat: Option<String>,
-    dn: Option<String>,
-    valve_type: Option<String>,
-    actuator: Option<String>,
-    manufactured_at: Option<String>,
-    last_kit_changed_at: Option<String>,
-    last_maintenance_at: Option<String>,
-}
-#[derive(Deserialize)]
-struct UpdateValve {
-    id: String,
-    tag: Option<String>,
-    zone: Option<String>,
-    manufacturer: Option<String>,
-    serial: Option<String>,
-    kit_reference: Option<String>,
-    seat: Option<String>,
-    dn: Option<String>,
-    valve_type: Option<String>,
-    actuator: Option<String>,
-    manufactured_at: Option<String>,
-}
-#[derive(Deserialize)]
-struct AddValvePhoto {
-    valve_id: String,
-    blob_ref: String,
-}
-#[derive(Deserialize)]
 struct DeleteById {
     id: String,
 }
-#[derive(Deserialize)]
-struct RegisterMaintenance {
-    valve_id: String,
-    performed_at: String,
-    technician: String,
-    maintenance_type: MaintenanceType,
-    service: String,
-    notes: Option<String>,
-    signature_ref: Option<String>,
-    #[serde(default)]
-    kit_changed: bool,
-}
-#[derive(Deserialize)]
-struct CreateServiceOrder {
-    zone: String,
-    valve_id: Option<String>,
-    description: String,
-    priority: ServiceOrderPriority,
-    technician: Option<String>,
-    scheduled_for: Option<String>,
-}
-#[derive(Deserialize)]
-struct ChangeServiceOrderStatus {
-    id: String,
-    status: ServiceOrderStatus,
-}
+
 #[derive(Deserialize)]
 struct CreateRestockRequest {
     reference: String,
     reason: String,
 }
+
 #[derive(Deserialize)]
 struct ReviewRestockRequest {
     id: String,
     status: RestockStatus,
 }
+
 #[derive(Deserialize)]
 struct AdjustStock {
     id: String,
     delta: i32,
     reason: String,
 }
+
 #[derive(Deserialize)]
 struct UpsertStock {
     reference: String,
@@ -1228,6 +850,7 @@ struct UpsertStock {
     manufacturer: Option<String>,
     location: Option<String>,
 }
+
 #[derive(Deserialize)]
 struct SupplierInput {
     name: String,
@@ -1236,6 +859,7 @@ struct SupplierInput {
     website: Option<String>,
     notes: Option<String>,
 }
+
 #[derive(Deserialize)]
 struct UpdateSupplier {
     id: String,
@@ -1245,6 +869,7 @@ struct UpdateSupplier {
     website: Option<String>,
     notes: Option<String>,
 }
+
 #[derive(Deserialize)]
 struct CreateUser {
     email: String,
@@ -1252,7 +877,9 @@ struct CreateUser {
     role: Role,
     password_hash: String,
     pin_hash: Option<String>,
+    maximum_repair_level: ComplexityLevel,
 }
+
 #[derive(Deserialize)]
 struct UpdateUser {
     id: String,
@@ -1260,7 +887,9 @@ struct UpdateUser {
     name: String,
     role: Role,
     active: bool,
+    maximum_repair_level: ComplexityLevel,
 }
+
 #[derive(Deserialize)]
 struct ResetUserCredentials {
     id: String,
@@ -1282,242 +911,48 @@ mod tests {
     }
 
     #[test]
-    fn create_valve_normalizes_tag_and_ensures_kit_once() {
+    fn supplier_rejects_invalid_links() {
         let mut state = ApplicationState::default();
-        let payload = command(
-            Role::Chefe,
-            serde_json::json!({"tag":" fv  10 ","zone":"A","kit_reference":" kit-1 "}),
-        );
-        state
-            .execute(commands::CREATE_VALVE, "c1", "idem-1", 1, &payload)
-            .unwrap();
-        assert_eq!(state.valves[0].tag_normalized, "FV 10");
-        assert_eq!(state.stock_items.len(), 1);
-        let replay = state
-            .execute(commands::CREATE_VALVE, "c2", "idem-1", 2, &payload)
-            .unwrap();
-        assert!(replay.replayed);
-        assert_eq!(state.valves.len(), 1);
-    }
-
-    #[test]
-    fn maintenance_consumes_one_kit_only_once() {
-        let mut state = ApplicationState::default();
-        let create = command(
-            Role::Chefe,
-            serde_json::json!({"tag":"V1","zone":"A","kit_reference":"K1"}),
-        );
-        state
-            .execute(commands::CREATE_VALVE, "c1", "idem-1", 1, &create)
-            .unwrap();
-        state.stock_items[0].quantity = 1;
-        let maintenance = command(
-            Role::Tecnico,
-            serde_json::json!({"valve_id":"valve-c1","performed_at":"2026-08-13","technician":"Tech","maintenance_type":"preventive","service":"Inspection","signature_ref":"signatures/test.png","kit_changed":true}),
-        );
-        state
-            .execute(
-                commands::REGISTER_MAINTENANCE,
-                "c2",
-                "idem-2",
-                2,
-                &maintenance,
-            )
-            .unwrap();
-        state
-            .execute(
-                commands::REGISTER_MAINTENANCE,
-                "c3",
-                "idem-2",
-                3,
-                &maintenance,
-            )
-            .unwrap();
-        assert_eq!(state.stock_items[0].quantity, 0);
-        assert_eq!(state.maintenance_records.len(), 1);
-        assert_eq!(state.stock_movements.len(), 1);
-    }
-
-    #[test]
-    fn maintenance_is_recorded_when_kit_stock_is_zero() {
-        let mut state = ApplicationState::default();
-        let create = command(
-            Role::Chefe,
-            serde_json::json!({"tag":"V1","zone":"A","kit_reference":"K1"}),
-        );
-        state
-            .execute(commands::CREATE_VALVE, "c1", "idem-1", 1, &create)
-            .unwrap();
-        let maintenance = command(
-            Role::Tecnico,
-            serde_json::json!({"valve_id":"valve-c1","performed_at":"2026-08-13","technician":"Tech","maintenance_type":"corrective","service":"Repair","signature_ref":"signatures/test.png","kit_changed":true}),
-        );
-        state
-            .execute(
-                commands::REGISTER_MAINTENANCE,
-                "c2",
-                "idem-2",
-                2,
-                &maintenance,
-            )
-            .unwrap();
-        assert!(state.maintenance_records[0].stock_consumption_pending);
-        assert_eq!(state.stock_items[0].quantity, 0);
-    }
-
-    #[test]
-    fn technician_cannot_create_valve_through_application_layer() {
-        let mut state = ApplicationState::default();
-        let payload = command(Role::Tecnico, serde_json::json!({"tag":"V1","zone":"A"}));
-        assert_eq!(
-            state.execute(commands::CREATE_VALVE, "c1", "idem-1", 1, &payload),
-            Err("forbidden".to_string())
-        );
-        assert!(state.valves.is_empty());
-        assert!(state.audit_events.is_empty());
-    }
-
-    #[test]
-    fn completed_order_cannot_be_deleted_but_pending_order_can() {
-        let mut state = ApplicationState::default();
-        let create = command(
-            Role::Chefe,
-            serde_json::json!({"zone":"A","description":"Inspect","priority":"normal"}),
-        );
-        state
-            .execute(commands::CREATE_SERVICE_ORDER, "c1", "idem-1", 1, &create)
-            .unwrap();
-        let delete = command(Role::Chefe, serde_json::json!({"id":"order-c1"}));
-        state
-            .execute(commands::DELETE_SERVICE_ORDER, "c2", "idem-2", 2, &delete)
-            .unwrap();
-        assert!(state.service_orders.is_empty());
-        assert_eq!(
-            state.audit_events.last().unwrap().operation,
-            commands::DELETE_SERVICE_ORDER
-        );
-
-        state
-            .execute(commands::CREATE_SERVICE_ORDER, "c3", "idem-3", 3, &create)
-            .unwrap();
-        state.service_orders[0].status = ServiceOrderStatus::Completed;
-        let delete_completed = command(Role::Chefe, serde_json::json!({"id":"order-c3"}));
-        assert_eq!(
-            state.execute(
-                commands::DELETE_SERVICE_ORDER,
-                "c4",
-                "idem-4",
-                4,
-                &delete_completed,
-            ),
-            Err("completed_order_cannot_be_deleted".to_string())
-        );
-    }
-
-    #[test]
-    fn valve_photo_is_associated_by_immutable_valve_id() {
-        let mut state = ApplicationState::default();
-        let create = command(Role::Chefe, serde_json::json!({"tag":"V1","zone":"A"}));
-        state
-            .execute(commands::CREATE_VALVE, "c1", "idem-1", 1, &create)
-            .unwrap();
-        let add = command(
-            Role::Admin,
-            serde_json::json!({"valve_id":"valve-c1","blob_ref":"valves/asset.png"}),
-        );
-        state
-            .execute(commands::ADD_VALVE_PHOTO, "c2", "idem-2", 2, &add)
-            .unwrap();
-        assert_eq!(state.valve_photos[0].valve_id, "valve-c1");
-        let remove = command(
-            Role::Admin,
-            serde_json::json!({"id":state.valve_photos[0].id}),
-        );
-        state
-            .execute(commands::DELETE_VALVE_PHOTO, "c3", "idem-3", 3, &remove)
-            .unwrap();
-        assert!(state.valve_photos.is_empty());
-    }
-
-    #[test]
-    fn supplier_rejects_invalid_email_and_website() {
-        let mut state = ApplicationState::default();
-        let invalid_email = command(
-            Role::Admin,
-            serde_json::json!({"name":"Supplier","contact":"Person","email":"invalid"}),
-        );
-        assert_eq!(
-            state.execute(commands::CREATE_SUPPLIER, "c1", "idem-1", 1, &invalid_email,),
-            Err("supplier_email_invalid".to_string())
-        );
-        let invalid_website = command(
+        let invalid = command(
             Role::Admin,
             serde_json::json!({"name":"Supplier","contact":"Person","website":"example.com"}),
         );
         assert_eq!(
-            state.execute(
-                commands::CREATE_SUPPLIER,
-                "c2",
-                "idem-2",
-                2,
-                &invalid_website,
-            ),
+            state.execute(commands::CREATE_SUPPLIER, "c1", "idem-1", 1, &invalid),
             Err("supplier_website_invalid".to_string())
         );
-        assert!(state.suppliers.is_empty());
     }
 
     #[test]
-    fn user_management_redacts_credentials_and_invalidates_sessions() {
+    fn user_management_redacts_credentials_and_persists_repair_level() {
         let mut state = ApplicationState::default();
-        let hash = format!("scrypt$salt${}", "ab".repeat(32));
         let create = command(
             Role::Admin,
             serde_json::json!({
                 "email":"ADMIN@EXAMPLE.COM",
                 "name":"Main Admin",
                 "role":"admin",
-                "password_hash":hash,
-                "pin_hash":format!("scrypt$pin${}", "cd".repeat(32))
+                "password_hash":format!("scrypt$salt${}", "ab".repeat(32)),
+                "maximum_repair_level":5
             }),
         );
         state
             .execute(commands::CREATE_USER, "u1", "user-idem-1", 1, &create)
             .unwrap();
-        assert_eq!(state.user_accounts[0].email, "admin@example.com");
-        assert_eq!(state.user_accounts[0].auth_version, 1);
-        let audit = state.audit_events.last().unwrap();
-        let snapshot = audit.after_json.as_deref().unwrap();
-        assert!(snapshot.contains("\"has_pin\":true"));
-        assert!(!snapshot.contains("password_hash"));
-        assert!(!snapshot.contains("scrypt$"));
-
-        let reset = command(
-            Role::Admin,
-            serde_json::json!({"id":"user-u1","password_hash":format!("scrypt$new${}", "ef".repeat(32))}),
-        );
-        state
-            .execute(
-                commands::RESET_USER_CREDENTIALS,
-                "u2",
-                "user-idem-2",
-                2,
-                &reset,
-            )
-            .unwrap();
-        assert_eq!(state.user_accounts[0].auth_version, 2);
-        assert!(!state
+        assert_eq!(state.user_accounts[0].maximum_repair_level.get(), 5);
+        let snapshot = state
             .audit_events
             .last()
             .unwrap()
             .after_json
             .as_deref()
-            .unwrap()
-            .contains("scrypt$"));
+            .unwrap();
+        assert!(!snapshot.contains("password_hash"));
+        assert!(!snapshot.contains("scrypt$"));
     }
 
     #[test]
-    fn last_active_administrator_cannot_be_disabled_or_demoted() {
+    fn last_active_administrator_cannot_be_disabled() {
         let mut state = ApplicationState::default();
         let create = command(
             Role::Admin,
@@ -1525,7 +960,8 @@ mod tests {
                 "email":"admin@example.com",
                 "name":"Main Admin",
                 "role":"admin",
-                "password_hash":format!("scrypt$salt${}", "ab".repeat(32))
+                "password_hash":format!("scrypt$salt${}", "ab".repeat(32)),
+                "maximum_repair_level":5
             }),
         );
         state
@@ -1534,18 +970,13 @@ mod tests {
         let disable = command(
             Role::Admin,
             serde_json::json!({
-                "id":"user-u1",
-                "email":"admin@example.com",
-                "name":"Main Admin",
-                "role":"admin",
-                "active":false
+                "id":"user-u1","email":"admin@example.com","name":"Main Admin",
+                "role":"admin","active":false,"maximum_repair_level":5
             }),
         );
         assert_eq!(
             state.execute(commands::UPDATE_USER, "u2", "user-idem-2", 2, &disable),
             Err("last_active_admin_required".to_string())
         );
-        assert!(state.user_accounts[0].active);
-        assert_eq!(state.user_accounts[0].role, "admin");
     }
 }

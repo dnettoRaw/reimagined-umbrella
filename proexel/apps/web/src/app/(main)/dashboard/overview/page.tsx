@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Activity, CalendarClock, PackageSearch, Wrench } from "lucide-react";
+import { CalendarClock, Factory, PackageSearch, Wrench } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,40 +14,41 @@ export const dynamic = "force-dynamic";
 
 export default async function OverviewPage() {
   const [overview, { t }] = await Promise.all([getOverview(), getI18n()]);
-  const { valves, orders, stock } = overview;
-  const inDatePercent = valves.total > 0 ? Math.round((valves.ok / valves.total) * 100) : 0;
-
+  const criticalItems =
+    (overview.machine_items.by_status.critical ?? 0) + (overview.machine_items.by_status.maintenance_required ?? 0);
+  const attentionItems = overview.machine_items.by_status.attention ?? 0;
+  const openOrders = overview.orders.pending + overview.orders.in_progress;
   return (
     <div>
       <PageHeader title={t("overview.title")} description={t("overview.description")} />
       <div className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          href="/dashboard/valves"
-          title={t("overview.valves")}
-          value={valves.total}
-          detail={t("overview.onTime", { percent: inDatePercent })}
-          icon={Activity}
+        <Metric
+          href="/dashboard/machines"
+          title={t("nav.machines")}
+          value={overview.machines.total}
+          detail={t("overview.componentCount", { count: overview.machine_items.total })}
+          icon={Factory}
         />
-        <MetricCard
-          href="/dashboard/valves"
+        <Metric
+          href="/dashboard/machines"
           title={t("overview.critical")}
-          value={valves.critical}
-          detail={t("overview.warningCount", { count: valves.warning })}
+          value={criticalItems}
+          detail={t("overview.warningCount", { count: attentionItems })}
           icon={Wrench}
-          tone="critical"
+          critical
         />
-        <MetricCard
+        <Metric
           href="/dashboard/orders"
           title={t("overview.openOrders")}
-          value={orders.open}
-          detail={t("overview.inProgressCount", { count: orders.in_progress })}
+          value={openOrders}
+          detail={t("overview.inProgressCount", { count: overview.orders.in_progress })}
           icon={CalendarClock}
         />
-        <MetricCard
+        <Metric
           href="/dashboard/stock"
           title={t("overview.lowStock")}
-          value={stock.low}
-          detail={t("overview.stockItems", { count: stock.total })}
+          value={overview.stock.low}
+          detail={t("overview.stockItems", { count: overview.stock.total })}
           icon={PackageSearch}
         />
       </div>
@@ -55,36 +56,37 @@ export default async function OverviewPage() {
         <Card>
           <CardHeader>
             <CardTitle>{t("overview.plantHealth")}</CardTitle>
-            <CardDescription>{t("overview.policy")}</CardDescription>
+            <CardDescription>{t("overview.deterministicPolicy")}</CardDescription>
           </CardHeader>
           <CardContent>
-            {valves.total === 0 ? (
-              <ProexelEmptyState
-                icon={Activity}
-                title={t("overview.noData")}
-                description={t("overview.noDataDescription")}
-              />
-            ) : (
+            {overview.machine_items.total ? (
               <div className="grid gap-3">
-                <HealthRow
-                  label={t("overview.onTrack")}
-                  value={valves.ok}
-                  total={valves.total}
-                  className="bg-emerald-500"
-                />
-                <HealthRow
-                  label={t("common.warning")}
-                  value={valves.warning}
-                  total={valves.total}
-                  className="bg-amber-500"
-                />
-                <HealthRow
-                  label={t("common.critical")}
-                  value={valves.critical}
-                  total={valves.total}
-                  className="bg-red-500"
-                />
+                {(
+                  [
+                    "ok",
+                    "attention",
+                    "critical",
+                    "maintenance_required",
+                    "under_maintenance",
+                    "unknown",
+                    "disabled",
+                  ] as const
+                ).map((status) => (
+                  <HealthRow
+                    key={status}
+                    label={t(`status.${status}`)}
+                    value={overview.machine_items.by_status[status] ?? 0}
+                    total={overview.machine_items.total}
+                    status={status}
+                  />
+                ))}
               </div>
+            ) : (
+              <ProexelEmptyState
+                icon={Factory}
+                title={t("overview.noData")}
+                description={t("overview.noMachineDataDescription")}
+              />
             )}
           </CardContent>
         </Card>
@@ -102,7 +104,7 @@ export default async function OverviewPage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground text-sm">{t("overview.schema")}</span>
-              <span className="font-medium text-sm">v{overview.schema_version}</span>
+              <strong className="text-sm">v{overview.schema_version}</strong>
             </div>
           </CardContent>
         </Card>
@@ -111,28 +113,28 @@ export default async function OverviewPage() {
   );
 }
 
-function MetricCard({
+function Metric({
   href,
   title,
   value,
   detail,
   icon: Icon,
-  tone,
+  critical,
 }: {
-  readonly href: string;
-  readonly title: string;
-  readonly value: number;
-  readonly detail: string;
-  readonly icon: typeof Activity;
-  readonly tone?: "critical";
+  href: string;
+  title: string;
+  value: number;
+  detail: string;
+  icon: typeof Factory;
+  critical?: boolean;
 }) {
   return (
     <Link href={href} className="block rounded-lg outline-none focus-visible:ring-2">
       <Card className="h-full transition-colors hover:bg-muted/30">
-        <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardHeader className="flex-row items-center justify-between">
           <div>
             <CardDescription>{title}</CardDescription>
-            <CardTitle className={tone === "critical" ? "text-destructive" : undefined}>{value}</CardTitle>
+            <CardTitle className={critical ? "text-destructive" : undefined}>{value}</CardTitle>
           </div>
           <Icon className="size-5 text-muted-foreground" />
         </CardHeader>
@@ -142,26 +144,23 @@ function MetricCard({
   );
 }
 
-function HealthRow({
-  label,
-  value,
-  total,
-  className,
-}: {
-  readonly label: string;
-  readonly value: number;
-  readonly total: number;
-  readonly className: string;
-}) {
-  const width = total > 0 ? Math.round((value / total) * 100) : 0;
+function HealthRow({ label, value, total, status }: { label: string; value: number; total: number; status: string }) {
+  const color =
+    status === "critical" || status === "maintenance_required"
+      ? "bg-red-500"
+      : status === "attention"
+        ? "bg-amber-500"
+        : status === "ok"
+          ? "bg-emerald-500"
+          : "bg-zinc-400";
   return (
     <div className="grid gap-1">
-      <div className="flex items-center justify-between text-sm">
+      <div className="flex justify-between text-sm">
         <span>{label}</span>
         <span className="text-muted-foreground">{value}</span>
       </div>
       <div className="h-2 overflow-hidden rounded-md bg-muted">
-        <div className={`h-full ${className}`} style={{ width: `${width}%` }} />
+        <div className={`h-full ${color}`} style={{ width: `${total ? (value / total) * 100 : 0}%` }} />
       </div>
     </div>
   );

@@ -1,8 +1,7 @@
-use crate::model::ServiceOrderStatus;
+use crate::model::{ComplexityLevel, OperationalStatus, ServiceOrderStatus};
 
 pub fn normalize_identifier(value: &str) -> String {
     value
-        .trim()
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -28,7 +27,40 @@ pub fn can_transition_order(from: ServiceOrderStatus, to: ServiceOrderStatus) ->
                     ServiceOrderStatus::InProgress,
                     ServiceOrderStatus::Completed
                 )
+                | (ServiceOrderStatus::Pending, ServiceOrderStatus::Cancelled)
+                | (
+                    ServiceOrderStatus::InProgress,
+                    ServiceOrderStatus::Cancelled
+                )
         )
+}
+
+pub fn can_execute_complexity(operator: ComplexityLevel, required: ComplexityLevel) -> bool {
+    operator >= required
+}
+
+pub fn derive_machine_status<'a>(
+    statuses: impl IntoIterator<Item = &'a OperationalStatus>,
+) -> OperationalStatus {
+    let mut derived = OperationalStatus::Unknown;
+    for status in statuses {
+        derived = match (derived, status) {
+            (_, OperationalStatus::Critical) => OperationalStatus::Critical,
+            (OperationalStatus::Critical, _) => OperationalStatus::Critical,
+            (_, OperationalStatus::MaintenanceRequired) => OperationalStatus::MaintenanceRequired,
+            (OperationalStatus::MaintenanceRequired, _) => OperationalStatus::MaintenanceRequired,
+            (_, OperationalStatus::UnderMaintenance) => OperationalStatus::UnderMaintenance,
+            (OperationalStatus::UnderMaintenance, _) => OperationalStatus::UnderMaintenance,
+            (_, OperationalStatus::Attention) => OperationalStatus::Attention,
+            (OperationalStatus::Attention, _) => OperationalStatus::Attention,
+            (_, OperationalStatus::Ok) => OperationalStatus::Ok,
+            (OperationalStatus::Ok, _) => OperationalStatus::Ok,
+            (_, OperationalStatus::Disabled) => OperationalStatus::Disabled,
+            (OperationalStatus::Disabled, _) => OperationalStatus::Disabled,
+            _ => OperationalStatus::Unknown,
+        };
+    }
+    derived
 }
 
 pub fn adjust_stock(quantity: u32, delta: i32) -> Result<u32, &'static str> {
@@ -59,6 +91,22 @@ mod tests {
             ServiceOrderStatus::Pending,
             ServiceOrderStatus::Completed
         ));
+    }
+
+    #[test]
+    fn complexity_and_machine_status_are_domain_rules() {
+        assert!(can_execute_complexity(
+            ComplexityLevel::new(4).unwrap(),
+            ComplexityLevel::new(3).unwrap()
+        ));
+        assert!(!can_execute_complexity(
+            ComplexityLevel::new(2).unwrap(),
+            ComplexityLevel::new(3).unwrap()
+        ));
+        assert_eq!(
+            derive_machine_status([OperationalStatus::Ok, OperationalStatus::Critical].iter()),
+            OperationalStatus::Critical
+        );
     }
 
     #[test]

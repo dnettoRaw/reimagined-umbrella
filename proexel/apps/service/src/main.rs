@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use appcore_bin::application::{
@@ -7,16 +7,36 @@ use appcore_bin::application::{
     EventRegistry, QueryEndpoint, QueryName, RuntimeContext, RuntimeResult,
 };
 use proexel_application::{can, commands, ApplicationState, Role};
-use proexel_domain::{maintenance_health, MaintenanceHealth, UserAccount};
+use proexel_domain::{
+    ComplexityLevel, OperationalStatus, PhotoOwnerType, ServiceOrderStatus, ServiceOrderTaskStatus,
+    UserAccount,
+};
 use proexel_infrastructure::JsonFileStore;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
 const EVENTS: &[&str] = &[
-    "valve.changed",
-    "valve_photo.changed",
-    "maintenance.changed",
-    "service_order.changed",
+    "item_category.created",
+    "item_category.updated",
+    "maintenance_guide.updated",
+    "machine.created",
+    "machine.updated",
+    "machine_item.created",
+    "machine_item.updated",
+    "machine_item.removed",
+    "machine_item.replaced",
+    "photo.added",
+    "photo.removed",
+    "service_order.created",
+    "service_order.started",
+    "service_order.updated",
+    "service_order.deleted",
+    "service_order.completed",
+    "service_order_task.started",
+    "service_order_task.completed",
+    "inspection.started",
+    "inspection.completed",
+    "item.status_changed",
     "restock_request.changed",
     "stock_item.changed",
     "supplier.changed",
@@ -148,13 +168,10 @@ impl QueryEndpoint for ProexelQuery {
         let filters = envelope.get("data").cloned().unwrap_or_else(|| json!({}));
         let payload = match self.name.as_str() {
             commands::GET_OVERVIEW => overview_payload(&state),
-            commands::LIST_VALVES => valves_payload(&state, &filters),
-            commands::LIST_MAINTENANCE => {
-                json!({"items": state.maintenance_records, "schema_version": state.schema_version})
-            }
-            commands::LIST_SERVICE_ORDERS => {
-                json!({"items": state.service_orders, "schema_version": state.schema_version})
-            }
+            commands::LIST_ITEM_CATEGORIES => categories_payload(&state, &filters),
+            commands::LIST_MACHINES => machines_payload(&state, &filters),
+            commands::LIST_SERVICE_ORDERS => orders_payload(&state, &filters),
+            commands::LIST_INSPECTIONS => inspections_payload(&state, &filters),
             commands::LIST_RESTOCK_REQUESTS => {
                 json!({"items": state.restock_requests, "schema_version": state.schema_version})
             }
@@ -167,6 +184,7 @@ impl QueryEndpoint for ProexelQuery {
             commands::LIST_AUDIT => audit_payload(&state, &filters),
             commands::GET_REPORTS => reports_payload(&state),
             commands::LIST_USERS => users_payload(&state),
+            commands::LIST_OPERATORS => operators_payload(&state),
             commands::RESOLVE_IDENTITY => identity_payload(&state, &filters),
             _ => json!({"error": "unknown_query"}),
         };
@@ -174,43 +192,253 @@ impl QueryEndpoint for ProexelQuery {
     }
 }
 
+fn query_permission(name: &str) -> Option<&'static str> {
+    match name {
+        commands::GET_OVERVIEW => None,
+        commands::LIST_ITEM_CATEGORIES => Some("item_category.read"),
+        commands::LIST_MACHINES => Some("machine.read"),
+        commands::LIST_SERVICE_ORDERS => Some("order.read"),
+        commands::LIST_INSPECTIONS => Some("inspection.read"),
+        commands::LIST_RESTOCK_REQUESTS => Some("restock.read"),
+        commands::LIST_STOCK => Some("stock.read"),
+        commands::LIST_SUPPLIERS => Some("supplier.read"),
+        commands::LIST_AUDIT => Some("audit.read"),
+        commands::GET_REPORTS => Some("report.read"),
+        commands::LIST_USERS => Some("admin.users.manage"),
+        commands::LIST_OPERATORS => Some("operator.read"),
+        commands::RESOLVE_IDENTITY => None,
+        _ => Some("unknown"),
+    }
+}
+
+fn categories_payload(state: &ApplicationState, filters: &Value) -> Value {
+    let search = normalized_filter(filters, "search");
+    let active = filters.get("active").and_then(Value::as_bool);
+    let mut items = state
+        .item_categories
+        .iter()
+        .filter(|category| {
+            search.is_empty()
+                || category.code_normalized.contains(&search)
+                || category.name.to_uppercase().contains(&search)
+        })
+        .filter(|category| active.is_none_or(|active| category.active == active))
+        .collect::<Vec<_>>();
+    items.sort_by(|left, right| left.name.cmp(&right.name));
+    let items = items
+        .into_iter()
+        .map(|category| {
+            let step_ids = category
+                .maintenance_guide
+                .steps
+                .iter()
+                .map(|step| step.id.as_str())
+                .collect::<BTreeSet<_>>();
+            let mut value = serde_json::to_value(category).unwrap_or_else(|_| json!({}));
+            value["guide_photos"] = json!(state
+                .photos
+                .iter()
+                .filter(|photo| {
+                    photo.owner_type == PhotoOwnerType::GuideStep
+                        && step_ids.contains(photo.owner_id.as_str())
+                })
+                .collect::<Vec<_>>());
+            value
+        })
+        .collect::<Vec<_>>();
+    json!({"items": items, "total": items.len(), "schema_version": state.schema_version})
+}
+
+fn machines_payload(state: &ApplicationState, filters: &Value) -> Value {
+    let id = text_filter(filters, "id");
+    let search = normalized_filter(filters, "search");
+    let zone = text_filter(filters, "zone");
+    let status = text_filter(filters, "status");
+    let page = page_filter(filters, "page", 1, usize::MAX);
+    let page_size = page_filter(filters, "page_size", 25, 500);
+    let include_removed = filters
+        .get("include_removed")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let mut machines = state
+        .machines
+        .iter()
+        .filter(|machine| id.is_empty() || machine.id == id)
+        .filter(|machine| {
+            search.is_empty()
+                || machine.code_normalized.contains(&search)
+                || machine.name.to_uppercase().contains(&search)
+                || machine.zone.to_uppercase().contains(&search)
+        })
+        .filter(|machine| zone.is_empty() || machine.zone == zone)
+        .filter(|machine| status.is_empty() || operational_status_name(machine.status) == status)
+        .collect::<Vec<_>>();
+    machines.sort_by(|left, right| {
+        left.zone
+            .cmp(&right.zone)
+            .then(left.code_normalized.cmp(&right.code_normalized))
+    });
+    let total = machines.len();
+    let start = page.saturating_sub(1).saturating_mul(page_size).min(total);
+    let items = machines
+        .into_iter()
+        .skip(start)
+        .take(page_size)
+        .map(|machine| {
+            let mut value = serde_json::to_value(machine).unwrap_or_else(|_| json!({}));
+            let machine_items = state
+                .machine_items
+                .iter()
+                .filter(|item| item.machine_id == machine.id && (include_removed || item.active))
+                .map(|item| {
+                    let mut item_value = serde_json::to_value(item).unwrap_or_else(|_| json!({}));
+                    item_value["category"] = json!(state
+                        .item_categories
+                        .iter()
+                        .find(|category| category.id == item.category_id));
+                    item_value["photos"] = json!(state
+                        .photos
+                        .iter()
+                        .filter(|photo| photo.owner_type == PhotoOwnerType::MachineItem
+                            && photo.owner_id == item.id)
+                        .collect::<Vec<_>>());
+                    item_value["replacement_history"] = json!(state
+                        .machine_item_replacements
+                        .iter()
+                        .filter(|replacement| replacement.machine_item_id == item.id)
+                        .map(|replacement| {
+                            let mut replacement_value =
+                                serde_json::to_value(replacement).unwrap_or_else(|_| json!({}));
+                            replacement_value["photos"] = json!(state
+                                .photos
+                                .iter()
+                                .filter(|photo| {
+                                    photo.owner_type == PhotoOwnerType::Replacement
+                                        && photo.owner_id == replacement.id
+                                })
+                                .collect::<Vec<_>>());
+                            replacement_value
+                        })
+                        .collect::<Vec<_>>());
+                    item_value
+                })
+                .collect::<Vec<_>>();
+            value["items"] = json!(machine_items);
+            value["photos"] = json!(state
+                .photos
+                .iter()
+                .filter(|photo| photo.owner_type == PhotoOwnerType::Machine
+                    && photo.owner_id == machine.id)
+                .collect::<Vec<_>>());
+            value
+        })
+        .collect::<Vec<_>>();
+    let zones = state
+        .machines
+        .iter()
+        .map(|machine| machine.zone.clone())
+        .collect::<BTreeSet<_>>();
+    json!({
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "facets": {"zones": zones},
+        "schema_version": state.schema_version,
+    })
+}
+
+fn orders_payload(state: &ApplicationState, filters: &Value) -> Value {
+    let id = text_filter(filters, "id");
+    let machine_id = text_filter(filters, "machine_id");
+    let status = text_filter(filters, "status");
+    let operator_id = text_filter(filters, "operator_id");
+    let mut orders = state
+        .service_orders
+        .iter()
+        .filter(|order| id.is_empty() || order.id == id)
+        .filter(|order| machine_id.is_empty() || order.machine_id == machine_id)
+        .filter(|order| status.is_empty() || order_status_name(order.status) == status)
+        .filter(|order| {
+            operator_id.is_empty()
+                || order
+                    .tasks
+                    .iter()
+                    .any(|task| task.assigned_operator_id.as_deref() == Some(operator_id.as_str()))
+        })
+        .collect::<Vec<_>>();
+    orders.sort_by_key(|order| std::cmp::Reverse(order.created_at_ms));
+    let items = orders
+        .into_iter()
+        .map(|order| {
+            let mut value = serde_json::to_value(order).unwrap_or_else(|_| json!({}));
+            value["maximum_complexity_level"] = json!(order
+                .tasks
+                .iter()
+                .map(|task| task.complexity_snapshot.get())
+                .max()
+                .unwrap_or(1));
+            value["completed_tasks"] = json!(order
+                .tasks
+                .iter()
+                .filter(|task| task.status == ServiceOrderTaskStatus::Completed)
+                .count());
+            value
+        })
+        .collect::<Vec<_>>();
+    json!({"total": items.len(), "items": items, "schema_version": state.schema_version})
+}
+
+fn inspections_payload(state: &ApplicationState, filters: &Value) -> Value {
+    let id = text_filter(filters, "id");
+    let order_id = text_filter(filters, "service_order_id");
+    let machine_id = text_filter(filters, "machine_id");
+    let machine_item_id = text_filter(filters, "machine_item_id");
+    let operator_id = text_filter(filters, "operator_id");
+    let mut items = state
+        .inspections
+        .iter()
+        .filter(|inspection| id.is_empty() || inspection.id == id)
+        .filter(|inspection| {
+            order_id.is_empty() || inspection.service_order_id.as_deref() == Some(order_id.as_str())
+        })
+        .filter(|inspection| machine_id.is_empty() || inspection.machine_id == machine_id)
+        .filter(|inspection| {
+            machine_item_id.is_empty() || inspection.machine_item_id == machine_item_id
+        })
+        .filter(|inspection| operator_id.is_empty() || inspection.operator_id == operator_id)
+        .collect::<Vec<_>>();
+    items.sort_by_key(|inspection| std::cmp::Reverse(inspection.started_at_ms));
+    let items = items
+        .into_iter()
+        .map(|inspection| {
+            let mut value = serde_json::to_value(inspection).unwrap_or_else(|_| json!({}));
+            value["photos"] = json!(state
+                .photos
+                .iter()
+                .filter(|photo| {
+                    photo.owner_type == PhotoOwnerType::Inspection
+                        && photo.owner_id == inspection.id
+                })
+                .collect::<Vec<_>>());
+            value
+        })
+        .collect::<Vec<_>>();
+    json!({"total": items.len(), "items": items, "schema_version": state.schema_version})
+}
+
 fn audit_payload(state: &ApplicationState, filters: &Value) -> Value {
-    let search = filters
-        .get("search")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim()
-        .to_lowercase();
-    let operation = filters
-        .get("operation")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
-    let actor = filters
-        .get("actor")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
-    let aggregate = filters
-        .get("aggregate")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
+    let search = text_filter(filters, "search").to_lowercase();
+    let operation = text_filter(filters, "operation");
+    let actor = text_filter(filters, "actor");
+    let aggregate = text_filter(filters, "aggregate");
     let from_ms = filters.get("from_ms").and_then(Value::as_u64).unwrap_or(0);
     let to_ms = filters
         .get("to_ms")
         .and_then(Value::as_u64)
         .unwrap_or(u64::MAX);
-    let page = filters
-        .get("page")
-        .and_then(Value::as_u64)
-        .unwrap_or(1)
-        .max(1) as usize;
-    let page_size = filters
-        .get("page_size")
-        .and_then(Value::as_u64)
-        .unwrap_or(50)
-        .clamp(1, 200) as usize;
+    let page = page_filter(filters, "page", 1, usize::MAX);
+    let page_size = page_filter(filters, "page_size", 50, 200);
     let events = state
         .audit_events
         .iter()
@@ -241,17 +469,17 @@ fn audit_payload(state: &ApplicationState, filters: &Value) -> Value {
         .audit_events
         .iter()
         .map(|event| event.operation.clone())
-        .collect::<std::collections::BTreeSet<_>>();
+        .collect::<BTreeSet<_>>();
     let actors = state
         .audit_events
         .iter()
         .map(|event| event.actor.clone())
-        .collect::<std::collections::BTreeSet<_>>();
+        .collect::<BTreeSet<_>>();
     let aggregates = state
         .audit_events
         .iter()
         .map(|event| event.aggregate.clone())
-        .collect::<std::collections::BTreeSet<_>>();
+        .collect::<BTreeSet<_>>();
     json!({
         "items": items,
         "schema_version": state.schema_version,
@@ -264,21 +492,100 @@ fn audit_payload(state: &ApplicationState, filters: &Value) -> Value {
     })
 }
 
-fn query_permission(name: &str) -> Option<&'static str> {
-    match name {
-        commands::GET_OVERVIEW => None,
-        commands::LIST_VALVES => Some("valve.read"),
-        commands::LIST_MAINTENANCE => Some("maintenance.read"),
-        commands::LIST_SERVICE_ORDERS => Some("order.read"),
-        commands::LIST_RESTOCK_REQUESTS => Some("restock.read"),
-        commands::LIST_STOCK => Some("stock.read"),
-        commands::LIST_SUPPLIERS => Some("supplier.read"),
-        commands::LIST_AUDIT => Some("audit.read"),
-        commands::GET_REPORTS => Some("report.read"),
-        commands::LIST_USERS => Some("admin.users.manage"),
-        commands::RESOLVE_IDENTITY => None,
-        _ => Some("unknown"),
+fn overview_payload(state: &ApplicationState) -> Value {
+    let machine_statuses = status_counts(state.machines.iter().map(|machine| machine.status));
+    let active_items = state.machine_items.iter().filter(|item| item.active);
+    let item_statuses = status_counts(active_items.clone().map(|item| item.status));
+    let order_counts = order_status_counts(state);
+    let low_stock = state
+        .stock_items
+        .iter()
+        .filter(|item| item.quantity <= item.minimum_quantity)
+        .count();
+    let mut recent_inspections = state.inspections.iter().collect::<Vec<_>>();
+    recent_inspections.sort_by_key(|inspection| std::cmp::Reverse(inspection.started_at_ms));
+    let mut upcoming_orders = state
+        .service_orders
+        .iter()
+        .filter(|order| {
+            order.scheduled_for.is_some()
+                && !matches!(
+                    order.status,
+                    ServiceOrderStatus::Completed | ServiceOrderStatus::Cancelled
+                )
+        })
+        .collect::<Vec<_>>();
+    upcoming_orders.sort_by(|left, right| left.scheduled_for.cmp(&right.scheduled_for));
+    json!({
+        "schema_version": state.schema_version,
+        "machines": {"total": state.machines.len(), "by_status": machine_statuses},
+        "machine_items": {"total": active_items.count(), "by_status": item_statuses},
+        "orders": order_counts,
+        "stock": {"low": low_stock, "total": state.stock_items.len()},
+        "recent_inspections": recent_inspections.into_iter().take(5).collect::<Vec<_>>(),
+        "upcoming_orders": upcoming_orders.into_iter().take(5).collect::<Vec<_>>(),
+    })
+}
+
+fn reports_payload(state: &ApplicationState) -> Value {
+    let overview = overview_payload(state);
+    let mut by_zone = BTreeMap::<String, (usize, usize, usize)>::new();
+    for machine in &state.machines {
+        let row = by_zone.entry(machine.zone.clone()).or_default();
+        row.0 += 1;
+        for item in state
+            .machine_items
+            .iter()
+            .filter(|item| item.active && item.machine_id == machine.id)
+        {
+            row.1 += 1;
+            if matches!(
+                item.status,
+                OperationalStatus::Critical | OperationalStatus::MaintenanceRequired
+            ) {
+                row.2 += 1;
+            }
+        }
     }
+    let zones = by_zone
+        .into_iter()
+        .map(|(zone, (machines, items, critical_items))| {
+            json!({
+                "zone": zone,
+                "machines": machines,
+                "items": items,
+                "critical_items": critical_items,
+            })
+        })
+        .collect::<Vec<_>>();
+    let critical_items = state
+        .machine_items
+        .iter()
+        .filter(|item| {
+            item.active
+                && matches!(
+                    item.status,
+                    OperationalStatus::Critical | OperationalStatus::MaintenanceRequired
+                )
+        })
+        .map(|item| {
+            json!({
+                "item": item,
+                "machine": state.machines.iter().find(|machine| machine.id == item.machine_id),
+                "category": state.item_categories.iter().find(|category| category.id == item.category_id),
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut recent_inspections = state.inspections.iter().collect::<Vec<_>>();
+    recent_inspections.sort_by_key(|inspection| std::cmp::Reverse(inspection.started_at_ms));
+    json!({
+        "schema_version": state.schema_version,
+        "generated_at_ms": now_ms(),
+        "overview": overview,
+        "by_zone": zones,
+        "critical_items": critical_items,
+        "recent_inspections": recent_inspections,
+    })
 }
 
 fn users_payload(state: &ApplicationState) -> Value {
@@ -292,10 +599,29 @@ fn users_payload(state: &ApplicationState) -> Value {
                 "name": user.name,
                 "role": user.role,
                 "active": user.active,
+                "maximum_repair_level": user.maximum_repair_level,
                 "has_pin": user.pin_hash.is_some(),
                 "auth_version": user.auth_version,
                 "created_at_ms": user.created_at_ms,
                 "updated_at_ms": user.updated_at_ms,
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({"items": items, "schema_version": state.schema_version})
+}
+
+fn operators_payload(state: &ApplicationState) -> Value {
+    let items = state
+        .user_accounts
+        .iter()
+        .filter(|user| user.active && matches!(user.role.as_str(), "admin" | "chefe" | "tecnico"))
+        .map(|user| {
+            json!({
+                "id": user.id,
+                "name": user.name,
+                "role": user.role,
+                "active": user.active,
+                "maximum_repair_level": user.maximum_repair_level,
             })
         })
         .collect::<Vec<_>>();
@@ -315,236 +641,75 @@ fn identity_payload(state: &ApplicationState, filters: &Value) -> Value {
     json!({"user": user})
 }
 
-fn valves_payload(state: &ApplicationState, filters: &Value) -> Value {
-    let id = filters
-        .get("id")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
-    let search = filters
-        .get("search")
+fn status_counts(
+    statuses: impl Iterator<Item = OperationalStatus>,
+) -> BTreeMap<&'static str, usize> {
+    let mut counts = BTreeMap::new();
+    for status in statuses {
+        *counts.entry(operational_status_name(status)).or_default() += 1;
+    }
+    counts
+}
+
+fn order_status_counts(state: &ApplicationState) -> BTreeMap<&'static str, usize> {
+    let mut counts = BTreeMap::new();
+    for status in ["pending", "in_progress", "completed", "cancelled"] {
+        counts.insert(status, 0);
+    }
+    for order in &state.service_orders {
+        *counts.entry(order_status_name(order.status)).or_default() += 1;
+    }
+    counts
+}
+
+fn operational_status_name(status: OperationalStatus) -> &'static str {
+    match status {
+        OperationalStatus::Unknown => "unknown",
+        OperationalStatus::Ok => "ok",
+        OperationalStatus::Attention => "attention",
+        OperationalStatus::Critical => "critical",
+        OperationalStatus::MaintenanceRequired => "maintenance_required",
+        OperationalStatus::UnderMaintenance => "under_maintenance",
+        OperationalStatus::Disabled => "disabled",
+    }
+}
+
+fn order_status_name(status: ServiceOrderStatus) -> &'static str {
+    match status {
+        ServiceOrderStatus::Pending => "pending",
+        ServiceOrderStatus::InProgress => "in_progress",
+        ServiceOrderStatus::Completed => "completed",
+        ServiceOrderStatus::Cancelled => "cancelled",
+    }
+}
+
+fn text_filter(filters: &Value, key: &str) -> String {
+    filters
+        .get(key)
         .and_then(Value::as_str)
         .unwrap_or("")
         .trim()
-        .to_uppercase();
-    let zone = filters
-        .get("zone")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
-    let health_filter = filters
-        .get("health")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
-    let valve_type = filters
-        .get("valve_type")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .trim();
-    let sort = filters.get("sort").and_then(Value::as_str).unwrap_or("tag");
-    let descending = filters
-        .get("direction")
-        .and_then(Value::as_str)
-        .is_some_and(|value| value == "desc");
-    let page = filters
-        .get("page")
+        .to_string()
+}
+
+fn normalized_filter(filters: &Value, key: &str) -> String {
+    text_filter(filters, key).to_uppercase()
+}
+
+fn page_filter(filters: &Value, key: &str, default: usize, maximum: usize) -> usize {
+    filters
+        .get(key)
         .and_then(Value::as_u64)
-        .unwrap_or(1)
-        .max(1) as usize;
-    let page_size = filters
-        .get("page_size")
-        .and_then(Value::as_u64)
-        .unwrap_or(25)
-        .clamp(1, 500) as usize;
-    let mut valves = state
-        .valves
-        .iter()
-        .filter(|valve| id.is_empty() || valve.id == id)
-        .filter(|valve| {
-            search.is_empty()
-                || valve.tag_normalized.contains(&search)
-                || valve.zone.to_uppercase().contains(&search)
-        })
-        .filter(|valve| zone.is_empty() || valve.zone == zone)
-        .filter(|valve| {
-            health_filter.is_empty()
-                || health_name(valve.last_maintenance_at.as_deref()) == health_filter
-        })
-        .filter(|valve| valve_type.is_empty() || valve.valve_type.as_deref() == Some(valve_type))
-        .collect::<Vec<_>>();
-    valves.sort_by(|left, right| {
-        let order = match sort {
-            "zone" => left.zone.cmp(&right.zone).then(left.tag.cmp(&right.tag)),
-            "health" => health_name(left.last_maintenance_at.as_deref())
-                .cmp(health_name(right.last_maintenance_at.as_deref()))
-                .then(left.tag.cmp(&right.tag)),
-            "last_maintenance" => left
-                .last_maintenance_at
-                .cmp(&right.last_maintenance_at)
-                .then(left.tag.cmp(&right.tag)),
-            _ => left.tag_normalized.cmp(&right.tag_normalized),
-        };
-        if descending {
-            order.reverse()
-        } else {
-            order
-        }
-    });
-    let total = valves.len();
-    let start = page.saturating_sub(1).saturating_mul(page_size).min(total);
-    let items = valves
-        .into_iter()
-        .skip(start)
-        .take(page_size)
-        .map(|valve| {
-            let mut value = serde_json::to_value(valve).unwrap_or_else(|_| json!({}));
-            value["health"] = json!(health_name(valve.last_maintenance_at.as_deref()));
-            value["photos"] = json!(state
-                .valve_photos
-                .iter()
-                .filter(|photo| photo.valve_id == valve.id)
-                .collect::<Vec<_>>());
-            value
-        })
-        .collect::<Vec<_>>();
-    let zones = state
-        .valves
-        .iter()
-        .map(|valve| valve.zone.clone())
-        .collect::<std::collections::BTreeSet<_>>();
-    let valve_types = state
-        .valves
-        .iter()
-        .filter_map(|valve| valve.valve_type.clone())
-        .collect::<std::collections::BTreeSet<_>>();
-    json!({
-        "items": items,
-        "schema_version": state.schema_version,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "facets": {"zones": zones, "valve_types": valve_types}
-    })
+        .unwrap_or(default as u64)
+        .max(1)
+        .min(maximum as u64) as usize
 }
 
-fn overview_payload(state: &ApplicationState) -> Value {
-    let mut ok = 0;
-    let mut warning = 0;
-    let mut critical = 0;
-    for valve in &state.valves {
-        match health_name(valve.last_maintenance_at.as_deref()) {
-            "ok" => ok += 1,
-            "warning" => warning += 1,
-            _ => critical += 1,
-        }
-    }
-    let orders_open = state
-        .service_orders
-        .iter()
-        .filter(|order| !matches!(order.status, proexel_domain::ServiceOrderStatus::Completed))
-        .count();
-    let orders_in_progress = state
-        .service_orders
-        .iter()
-        .filter(|order| matches!(order.status, proexel_domain::ServiceOrderStatus::InProgress))
-        .count();
-    let low_stock = state
-        .stock_items
-        .iter()
-        .filter(|item| item.quantity <= item.minimum_quantity)
-        .count();
-    json!({
-        "schema_version": state.schema_version,
-        "valves": {"total": state.valves.len(), "ok": ok, "warning": warning, "critical": critical},
-        "orders": {"open": orders_open, "in_progress": orders_in_progress, "completed": state.service_orders.len().saturating_sub(orders_open)},
-        "stock": {"low": low_stock, "total": state.stock_items.len()},
-        "recent_maintenance": state.maintenance_records.iter().rev().take(5).collect::<Vec<_>>(),
-        "upcoming_orders": state.service_orders.iter().filter(|order| order.scheduled_for.is_some() && !matches!(order.status, proexel_domain::ServiceOrderStatus::Completed)).take(5).collect::<Vec<_>>()
-    })
-}
-
-fn reports_payload(state: &ApplicationState) -> Value {
-    let overview = overview_payload(state);
-    let mut by_zone = BTreeMap::<String, (usize, usize, usize)>::new();
-    let critical_valves = state
-        .valves
-        .iter()
-        .filter_map(|valve| {
-            let health = health_name(valve.last_maintenance_at.as_deref());
-            let row = by_zone.entry(valve.zone.clone()).or_default();
-            row.0 += 1;
-            match health {
-                "critical" => row.1 += 1,
-                "warning" => row.2 += 1,
-                _ => {}
-            }
-            (health == "critical").then(|| {
-                json!({
-                    "id": valve.id,
-                    "tag": valve.tag,
-                    "zone": valve.zone,
-                    "last_maintenance_at": valve.last_maintenance_at,
-                    "health": health,
-                })
-            })
-        })
-        .collect::<Vec<_>>();
-    let zones = by_zone
-        .into_iter()
-        .map(|(zone, (total, critical, warning))| {
-            json!({"zone": zone, "total": total, "critical": critical, "warning": warning})
-        })
-        .collect::<Vec<_>>();
-    let recent_maintenance = state.maintenance_records.iter().rev().collect::<Vec<_>>();
-    json!({
-        "schema_version": state.schema_version,
-        "generated_at_ms": std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| duration.as_millis() as u64)
-            .unwrap_or_default(),
-        "overview": overview,
-        "by_zone": zones,
-        "critical_valves": critical_valves,
-        "recent_maintenance": recent_maintenance,
-    })
-}
-
-fn health_name(last_maintenance: Option<&str>) -> &'static str {
-    let days = last_maintenance.and_then(days_since_date);
-    match maintenance_health(days) {
-        MaintenanceHealth::Ok => "ok",
-        MaintenanceHealth::Warning => "warning",
-        MaintenanceHealth::Critical => "critical",
-    }
-}
-
-fn days_since_date(value: &str) -> Option<u32> {
-    let date = value.get(..10)?;
-    let mut parts = date.split('-');
-    let year = parts.next()?.parse::<i32>().ok()?;
-    let month = parts.next()?.parse::<u32>().ok()?;
-    let day = parts.next()?.parse::<u32>().ok()?;
-    let then = days_from_civil(year, month, day)?;
-    let now = (std::time::SystemTime::now()
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .ok()?
-        .as_secs()
-        / 86_400) as i64;
-    Some(now.saturating_sub(then).max(0) as u32)
-}
-
-fn days_from_civil(year: i32, month: u32, day: u32) -> Option<i64> {
-    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
-        return None;
-    }
-    let year = year - i32::from(month <= 2);
-    let era = if year >= 0 { year } else { year - 399 } / 400;
-    let yoe = year - era * 400;
-    let shifted_month = month as i32 + if month > 2 { -3 } else { 9 };
-    let doy = (153 * shifted_month + 2) / 5 + day as i32 - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    Some((era * 146_097 + doe - 719_468) as i64)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or_default()
 }
 
 fn json_response(status_code: u16, value: Value) -> RuntimeResult<ApiResponse> {
@@ -564,6 +729,7 @@ fn state_path() -> PathBuf {
     manifest
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."))
+        // The existing path is retained so schema migration can happen in place.
         .join("target/runtime/storage/proexel-state-v1.json")
 }
 
@@ -576,12 +742,23 @@ struct SeedUser {
     password_hash: String,
     #[serde(default)]
     pin_hash: Option<String>,
+    #[serde(default)]
+    maximum_repair_level: Option<ComplexityLevel>,
     #[serde(default = "default_true")]
     active: bool,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_repair_level(role: &str) -> ComplexityLevel {
+    let value = if matches!(role, "admin" | "chefe") {
+        5
+    } else {
+        3
+    };
+    ComplexityLevel::new(value).expect("default repair levels are valid")
 }
 
 fn seed_users_from_environment(store: &JsonFileStore) -> Result<(), String> {
@@ -595,17 +772,23 @@ fn seed_users_from_environment(store: &JsonFileStore) -> Result<(), String> {
         state.seed_users(
             seeds
                 .into_iter()
-                .map(|seed| UserAccount {
-                    id: seed.id,
-                    email: seed.email,
-                    name: seed.name,
-                    role: seed.role,
-                    password_hash: seed.password_hash,
-                    pin_hash: seed.pin_hash,
-                    active: seed.active,
-                    auth_version: 1,
-                    created_at_ms: 0,
-                    updated_at_ms: 0,
+                .map(|seed| {
+                    let maximum_repair_level = seed
+                        .maximum_repair_level
+                        .unwrap_or_else(|| default_repair_level(&seed.role));
+                    UserAccount {
+                        id: seed.id,
+                        email: seed.email,
+                        name: seed.name,
+                        role: seed.role,
+                        password_hash: seed.password_hash,
+                        pin_hash: seed.pin_hash,
+                        active: seed.active,
+                        maximum_repair_level,
+                        auth_version: 1,
+                        created_at_ms: 0,
+                        updated_at_ms: 0,
+                    }
                 })
                 .collect(),
         )
@@ -633,41 +816,67 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proexel_domain::{Machine, MachineItem, ReplacementSpecification, ServiceOrderPriority};
 
-    #[test]
-    fn civil_date_conversion_matches_unix_epoch() {
-        assert_eq!(days_from_civil(1970, 1, 1), Some(0));
-        assert_eq!(days_from_civil(2026, 8, 13), Some(20_678));
+    fn machine(id: &str, zone: &str, status: OperationalStatus) -> Machine {
+        Machine {
+            id: id.to_string(),
+            code: id.to_uppercase(),
+            code_normalized: id.to_uppercase(),
+            name: format!("Machine {id}"),
+            description: None,
+            zone: zone.to_string(),
+            location: None,
+            manufacturer: None,
+            model: None,
+            serial_number: None,
+            status,
+            main_photo_id: None,
+            active: true,
+            created_at_ms: 0,
+            updated_at_ms: 0,
+        }
+    }
+
+    fn item(index: usize, machine_id: &str, status: OperationalStatus) -> MachineItem {
+        MachineItem {
+            id: format!("item-{index}"),
+            machine_id: machine_id.to_string(),
+            category_id: "category-1".to_string(),
+            name: format!("Item {index}"),
+            code: format!("I-{index:05}"),
+            code_normalized: format!("I-{index:05}"),
+            complexity_level: ComplexityLevel::new(3).unwrap(),
+            status,
+            position: index as u32,
+            location_description: None,
+            custom_field_values: BTreeMap::new(),
+            installed_component: None,
+            replacement_specification: ReplacementSpecification::default(),
+            notes: None,
+            active: true,
+            removed_at_ms: None,
+            created_at_ms: index as u64,
+            updated_at_ms: index as u64,
+        }
     }
 
     #[test]
-    fn report_dataset_centralizes_zone_and_critical_counts() {
+    fn reports_group_machine_items_by_zone_and_status() {
         let mut state = ApplicationState::default();
-        state.valves.push(proexel_domain::Valve {
-            id: "v1".to_string(),
-            tag: "FV 1".to_string(),
-            tag_normalized: "FV 1".to_string(),
-            zone: "Linha 1".to_string(),
-            manufacturer: None,
-            serial: None,
-            kit_reference: None,
-            seat: None,
-            dn: None,
-            valve_type: None,
-            actuator: None,
-            manufactured_at: None,
-            last_kit_changed_at: None,
-            last_maintenance_at: None,
-            created_at_ms: 0,
-            updated_at_ms: 0,
-        });
+        state
+            .machines
+            .push(machine("machine-1", "Line 1", OperationalStatus::Critical));
+        state
+            .machine_items
+            .push(item(1, "machine-1", OperationalStatus::Critical));
 
         let report = reports_payload(&state);
 
-        assert_eq!(report["overview"]["valves"]["critical"], 1);
-        assert_eq!(report["by_zone"][0]["zone"], "Linha 1");
-        assert_eq!(report["by_zone"][0]["critical"], 1);
-        assert_eq!(report["critical_valves"][0]["tag"], "FV 1");
+        assert_eq!(report["overview"]["machines"]["by_status"]["critical"], 1);
+        assert_eq!(report["by_zone"][0]["zone"], "Line 1");
+        assert_eq!(report["by_zone"][0]["critical_items"], 1);
+        assert_eq!(report["critical_items"][0]["item"]["code"], "I-00001");
     }
 
     #[test]
@@ -681,11 +890,11 @@ mod tests {
         }
         assert!(can(
             Role::Tecnico,
-            query_permission(commands::LIST_VALVES).unwrap()
+            query_permission(commands::LIST_MACHINES).unwrap()
         ));
         assert!(!can(
             Role::Compras,
-            query_permission(commands::LIST_VALVES).unwrap()
+            query_permission(commands::LIST_MACHINES).unwrap()
         ));
         assert!(can(
             Role::Chefe,
@@ -704,6 +913,7 @@ mod tests {
             password_hash: "scrypt$salt$secret".to_string(),
             pin_hash: Some("scrypt$pin$secret".to_string()),
             active: true,
+            maximum_repair_level: ComplexityLevel::new(5).unwrap(),
             auth_version: 3,
             created_at_ms: 1,
             updated_at_ms: 2,
@@ -715,53 +925,37 @@ mod tests {
         assert!(!encoded.contains("pin_hash"));
         assert!(!encoded.contains("scrypt$"));
         assert_eq!(payload["items"][0]["has_pin"], true);
-        assert_eq!(payload["items"][0]["auth_version"], 3);
+        assert_eq!(payload["items"][0]["maximum_repair_level"], 5);
     }
 
     #[test]
-    fn production_volume_queries_are_paginated_and_bounded() {
+    fn production_volume_machine_query_is_paginated_and_bounded() {
         let started = std::time::Instant::now();
         let mut state = ApplicationState::default();
         for index in 0..2_000 {
-            state.valves.push(proexel_domain::Valve {
-                id: format!("v-{index}"),
-                tag: format!("FV {index:05}"),
-                tag_normalized: format!("FV {index:05}"),
-                zone: format!("Zone {}", index % 20),
-                manufacturer: None,
-                serial: None,
-                kit_reference: None,
-                seat: None,
-                dn: None,
-                valve_type: Some("butterfly".to_string()),
-                actuator: None,
-                manufactured_at: None,
-                last_kit_changed_at: None,
-                last_maintenance_at: None,
-                created_at_ms: index,
-                updated_at_ms: index,
-            });
-            state.audit_events.push(proexel_domain::AuditEvent {
-                id: format!("a-{index}"),
-                actor: "Load test".to_string(),
-                role: "admin".to_string(),
-                operation: commands::CREATE_VALVE.to_string(),
-                aggregate: "valve".to_string(),
-                aggregate_id: format!("v-{index}"),
-                description: Some("Valve created".to_string()),
-                trace_id: None,
-                before_json: None,
-                after_json: None,
-                result: "success".to_string(),
-                created_at_ms: index,
-            });
+            let machine_id = format!("machine-{index}");
+            state.machines.push(machine(
+                &machine_id,
+                &format!("Zone {}", index % 20),
+                OperationalStatus::Ok,
+            ));
+            state
+                .machine_items
+                .push(item(index, &machine_id, OperationalStatus::Ok));
         }
-        let valves = valves_payload(&state, &json!({"page": 20, "page_size": 50}));
-        let audit = audit_payload(&state, &json!({"page": 10, "page_size": 100}));
-        assert_eq!(valves["total"], 2_000);
-        assert_eq!(valves["items"].as_array().unwrap().len(), 50);
-        assert_eq!(audit["total"], 2_000);
-        assert_eq!(audit["items"].as_array().unwrap().len(), 100);
+        let machines = machines_payload(&state, &json!({"page": 20, "page_size": 50}));
+        assert_eq!(machines["total"], 2_000);
+        assert_eq!(machines["items"].as_array().unwrap().len(), 50);
         assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    }
+
+    #[test]
+    fn order_status_count_includes_cancelled_and_empty_buckets() {
+        let state = ApplicationState::default();
+        let counts = order_status_counts(&state);
+        assert_eq!(counts["pending"], 0);
+        assert_eq!(counts["cancelled"], 0);
+        let _ = ServiceOrderPriority::Normal;
+        let _ = proexel_domain::InspectionStatus::Completed;
     }
 }

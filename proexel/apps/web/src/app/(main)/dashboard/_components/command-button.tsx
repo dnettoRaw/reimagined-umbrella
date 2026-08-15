@@ -21,7 +21,7 @@ export function CommandButton({
   readonly data: Record<string, unknown>;
   readonly children: React.ReactNode;
   readonly variant?: "default" | "outline" | "destructive" | "secondary" | "ghost";
-  readonly method?: "PATCH" | "DELETE";
+  readonly method?: "POST" | "PATCH" | "PUT" | "DELETE";
   readonly confirmMessage?: string;
 }) {
   const router = useRouter();

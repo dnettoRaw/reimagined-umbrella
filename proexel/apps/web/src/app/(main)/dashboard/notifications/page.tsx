@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { INTL_LOCALES } from "@/lib/i18n/config";
 import { getI18n } from "@/lib/i18n/server";
 import { requireSession } from "@/lib/proexel/auth-server";
-import { getRuntimeStatus, listServiceOrders, listStock, listValves } from "@/lib/proexel/service";
+import { getRuntimeStatus, listMachines, listServiceOrders, listStock } from "@/lib/proexel/service";
 
 import { PageHeader } from "../_components/page-header";
 import { ProexelEmptyState } from "../_components/proexel-empty-state";
@@ -15,21 +15,25 @@ import { ProexelEmptyState } from "../_components/proexel-empty-state";
 export const dynamic = "force-dynamic";
 
 export default async function NotificationsPage() {
-  const [, valves, stock, orders, runtime, { t, locale }] = await Promise.all([
-    requireSession(),
-    listValves({ health: "critical", page_size: 500, sort: "last_maintenance", direction: "asc" }),
+  await requireSession();
+  const [machines, stock, orders, runtime, { t, locale }] = await Promise.all([
+    listMachines({ page_size: 500 }),
     listStock(),
     listServiceOrders(),
     getRuntimeStatus(),
     getI18n(),
   ]);
+  const criticalItems = machines.items.flatMap((machine) =>
+    machine.items
+      .filter((item) => item.status === "critical" || item.status === "maintenance_required")
+      .map((item) => ({ machine, item })),
+  );
   const lowStock = stock.items.filter((item) => item.quantity <= item.minimum_quantity);
   const openOrders = orders.items
-    .filter((order) => order.status !== "completed")
+    .filter((order) => order.status === "pending" || order.status === "in_progress")
     .toSorted((left, right) => (left.scheduled_for ?? "9999").localeCompare(right.scheduled_for ?? "9999"));
-  const hasAlerts = !runtime.healthy || valves.items.length + lowStock.length + openOrders.length > 0;
+  const hasAlerts = !runtime.healthy || criticalItems.length + lowStock.length + openOrders.length > 0;
   const today = new Date().toISOString().slice(0, 10);
-
   return (
     <div>
       <PageHeader title={t("nav.notifications")} description={t("notifications.description")} />
@@ -53,18 +57,22 @@ export default async function NotificationsPage() {
               </div>
             </AlertCard>
           ) : null}
-          <AlertCard title={t("notifications.criticalValves")} icon={Wrench} count={valves.items.length}>
-            {valves.items.map((valve) => (
+          <AlertCard title={t("notifications.criticalItems")} icon={Wrench} count={criticalItems.length}>
+            {criticalItems.map(({ machine, item }) => (
               <Link
-                key={valve.id}
-                href={`/dashboard/valves/${encodeURIComponent(valve.id)}`}
+                key={item.id}
+                href={`/dashboard/machines/${encodeURIComponent(machine.id)}`}
                 className="flex items-center justify-between gap-3 border-b py-3 last:border-0"
               >
                 <div>
-                  <strong>{valve.tag}</strong>
-                  <p className="text-muted-foreground text-xs">{valve.zone}</p>
+                  <strong>
+                    {item.code} · {item.name}
+                  </strong>
+                  <p className="text-muted-foreground text-xs">
+                    {machine.code} · {machine.zone}
+                  </p>
                 </div>
-                <Badge variant="destructive">{t("common.critical")}</Badge>
+                <Badge variant="destructive">{t(`status.${item.status}`)}</Badge>
               </Link>
             ))}
           </AlertCard>
@@ -85,9 +93,13 @@ export default async function NotificationsPage() {
             {openOrders.map((order) => {
               const overdue = Boolean(order.scheduled_for && order.scheduled_for < today);
               return (
-                <div key={order.id} className="flex items-center justify-between gap-3 border-b py-3 last:border-0">
+                <Link
+                  key={order.id}
+                  href={`/dashboard/execution/${encodeURIComponent(order.id)}`}
+                  className="flex items-center justify-between gap-3 border-b py-3 last:border-0"
+                >
                   <div>
-                    <strong>{order.zone}</strong>
+                    <strong>{order.machine_snapshot.code}</strong>
                     <p className="line-clamp-1 text-muted-foreground text-xs">{order.description}</p>
                   </div>
                   <Badge variant={overdue ? "destructive" : "outline"}>
@@ -99,7 +111,7 @@ export default async function NotificationsPage() {
                           )
                         : t("orders.unscheduled")}
                   </Badge>
-                </div>
+                </Link>
               );
             })}
           </AlertCard>

@@ -7,7 +7,7 @@ Finalize as capacidades transversais visíveis ao usuário.
 Preserve a semântica dos relatórios antigos:
 - geral;
 - por zona;
-- válvulas críticas;
+- máquinas e componentes críticos;
 - manutenção recente.
 
 O backend/application layer deve fornecer datasets/queries de relatório; a UI/PDF não deve recalcular regras críticas de forma paralela.

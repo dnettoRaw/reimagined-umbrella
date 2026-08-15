@@ -14,7 +14,6 @@ import type { ReportResult } from "@/lib/proexel/types";
 export function ReportExport({ report }: { readonly report: ReportResult }) {
   const { t, locale } = useI18n();
   const [pending, setPending] = useState(false);
-
   function exportPdf() {
     setPending(true);
     try {
@@ -23,6 +22,9 @@ export function ReportExport({ report }: { readonly report: ReportResult }) {
       const generated = new Intl.DateTimeFormat(intl, { dateStyle: "medium", timeStyle: "short" }).format(
         new Date(report.generated_at_ms),
       );
+      const critical =
+        (report.overview.machine_items.by_status.critical ?? 0) +
+        (report.overview.machine_items.by_status.maintenance_required ?? 0);
       doc.setProperties({
         title: `PROEXEL - ${t("nav.reports")}`,
         subject: t("reports.description"),
@@ -35,36 +37,29 @@ export function ReportExport({ report }: { readonly report: ReportResult }) {
       doc.text(t("reports.generatedAt", { date: generated }), 14, 24);
       autoTable(doc, {
         startY: 30,
-        head: [[t("overview.valves"), t("overview.critical"), t("overview.openOrders"), t("overview.lowStock")]],
+        head: [[t("nav.machines"), t("common.components"), t("overview.critical"), t("overview.lowStock")]],
         body: [
-          [
-            report.overview.valves.total,
-            report.overview.valves.critical,
-            report.overview.orders.open,
-            report.overview.stock.low,
-          ],
+          [report.overview.machines.total, report.overview.machine_items.total, critical, report.overview.stock.low],
         ],
         theme: "grid",
         styles: { fontSize: 9 },
       });
       autoTable(doc, {
         startY: lastTableY(doc) + 8,
-        head: [[t("common.zone"), t("overview.valves"), t("common.critical"), t("common.warning")]],
-        body: report.by_zone.map((row) => [row.zone, row.total, row.critical, row.warning]),
+        head: [[t("common.zone"), t("nav.machines"), t("common.components"), t("common.critical")]],
+        body: report.by_zone.map((row) => [row.zone, row.machines, row.items, row.critical_items]),
         theme: "striped",
         styles: { fontSize: 8 },
         headStyles: { fillColor: [31, 41, 55] },
       });
       autoTable(doc, {
         startY: lastTableY(doc) + 8,
-        head: [["TAG", t("common.zone"), t("valves.lastMaintenance"), t("common.health")]],
-        body: report.critical_valves.map((valve) => [
-          valve.tag,
-          valve.zone,
-          valve.last_maintenance_at
-            ? new Intl.DateTimeFormat(intl).format(new Date(`${valve.last_maintenance_at}T00:00:00`))
-            : t("common.never"),
-          t("common.critical"),
+        head: [[t("orders.machine"), t("common.component"), t("common.category"), t("common.status")]],
+        body: report.critical_items.map(({ item, machine, category }) => [
+          machine?.code ?? "-",
+          item.code,
+          category?.name ?? "-",
+          t(`status.${item.status}`),
         ]),
         theme: "striped",
         styles: { fontSize: 8 },
@@ -72,18 +67,16 @@ export function ReportExport({ report }: { readonly report: ReportResult }) {
       });
       autoTable(doc, {
         startY: lastTableY(doc) + 8,
-        head: [[t("common.date"), "TAG", t("common.technician"), t("common.type"), t("maintenance.service")]],
-        body: report.recent_maintenance.map((item) => [
-          new Intl.DateTimeFormat(intl).format(new Date(`${item.performed_at}T00:00:00`)),
-          item.valve_tag_snapshot,
-          item.technician,
-          item.maintenance_type === "preventive" ? t("maintenance.preventive") : t("maintenance.corrective"),
-          item.service,
+        head: [[t("common.date"), t("common.technician"), t("common.category"), t("common.result")]],
+        body: report.recent_inspections.map((inspection) => [
+          new Intl.DateTimeFormat(intl).format(new Date(inspection.completed_at_ms ?? inspection.started_at_ms)),
+          inspection.operator_name,
+          inspection.category_snapshot.name,
+          t(`status.${inspection.status_after ?? inspection.status_before}`),
         ]),
         theme: "grid",
-        styles: { fontSize: 7, cellWidth: "wrap", overflow: "linebreak" },
+        styles: { fontSize: 7 },
         headStyles: { fillColor: [31, 41, 55] },
-        columnStyles: { 4: { cellWidth: 70 } },
         margin: { bottom: 14 },
       });
       const pages = doc.getNumberOfPages();
@@ -98,7 +91,6 @@ export function ReportExport({ report }: { readonly report: ReportResult }) {
       setPending(false);
     }
   }
-
   return (
     <Button type="button" onClick={exportPdf} disabled={pending || report.source !== "appcore"}>
       {pending ? <Loader2 className="animate-spin" /> : <Download />}

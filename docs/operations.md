@@ -1,4 +1,4 @@
-# PROEXEL local operations
+# PROEXEL local operations - CONCLUÍDO 100%
 
 ## Storage ownership
 
@@ -7,7 +7,7 @@ uses scoped command/query tokens and never reads the state file directly. The
 JSON adapter writes a complete temporary file, flushes it, and renames it over
 the previous version while holding the application transaction lock.
 
-Next.js is the only writer of protected photo/signature files under
+Next.js is the only writer of protected photo files under
 `PROEXEL_ATTACHMENTS_DIR`. Attachment metadata remains canonical Rust state, so
 state and files must be backed up and restored together.
 

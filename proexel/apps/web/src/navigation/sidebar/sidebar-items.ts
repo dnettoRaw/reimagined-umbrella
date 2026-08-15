@@ -1,9 +1,10 @@
 import {
-  Activity,
   BarChart3,
   Bell,
   Building2,
   Calendar,
+  ClipboardCheck,
+  Factory,
   History,
   LayoutDashboard,
   type LucideIcon,
@@ -11,7 +12,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingCart,
-  Wrench,
+  Tags,
 } from "lucide-react";
 
 import type { TranslationKey } from "@/lib/i18n/messages";
@@ -54,15 +55,21 @@ export const sidebarItems: NavGroup[] = [
         icon: LayoutDashboard,
       },
       {
-        title: "nav.valves",
-        url: "/dashboard/valves",
-        icon: Activity,
+        title: "nav.machines",
+        url: "/dashboard/machines",
+        icon: Factory,
         roles: ["admin", "chefe", "tecnico"],
       },
       {
-        title: "nav.maintenance",
-        url: "/dashboard/maintenance",
-        icon: Wrench,
+        title: "nav.categories",
+        url: "/dashboard/categories",
+        icon: Tags,
+        roles: ["admin"],
+      },
+      {
+        title: "nav.execution",
+        url: "/dashboard/execution",
+        icon: ClipboardCheck,
         roles: ["admin", "chefe", "tecnico"],
       },
       {

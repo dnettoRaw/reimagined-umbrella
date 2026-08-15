@@ -1,4 +1,4 @@
-# PROEXEL standalone deployment
+# PROEXEL standalone deployment - CONCLUÍDO 100%
 
 This document covers the implemented standalone topology. Distributed AppCore
 deployment and remote synchronization are not configured in the repository.

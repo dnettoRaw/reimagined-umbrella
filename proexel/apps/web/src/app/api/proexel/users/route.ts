@@ -26,7 +26,8 @@ export async function POST(request: Request) {
   const selectedRole = role(body.role);
   const password = text(body.password);
   const pin = text(body.pin);
-  if (!name || !email || !selectedRole) return validationError("service.invalidData");
+  const maximumRepairLevel = repairLevel(body.maximum_repair_level);
+  if (!name || !email || !selectedRole || !maximumRepairLevel) return validationError("service.invalidData");
   if (!validPassword(password) || (pin && !validPin(pin))) return validationError("service.credentialFormat");
   return run("proexel.admin.users.create", {
     email,
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
     role: selectedRole,
     password_hash: hashCredential(password),
     pin_hash: pin ? hashCredential(pin) : null,
+    maximum_repair_level: maximumRepairLevel,
   });
 }
 
@@ -45,7 +47,8 @@ export async function PATCH(request: Request) {
   const name = text(body.name);
   const email = text(body.email);
   const selectedRole = role(body.role);
-  if (!id || !name || !email || !selectedRole || typeof body.active !== "boolean") {
+  const maximumRepairLevel = repairLevel(body.maximum_repair_level);
+  if (!id || !name || !email || !selectedRole || !maximumRepairLevel || typeof body.active !== "boolean") {
     return validationError("service.invalidData");
   }
   return run("proexel.admin.users.update", {
@@ -54,6 +57,7 @@ export async function PATCH(request: Request) {
     name,
     role: selectedRole,
     active: body.active,
+    maximum_repair_level: maximumRepairLevel,
   });
 }
 
@@ -114,6 +118,11 @@ function text(value: unknown) {
 
 function role(value: unknown): Role | "" {
   return ROLES.includes(value as Role) ? (value as Role) : "";
+}
+
+function repairLevel(value: unknown) {
+  const level = typeof value === "number" ? value : Number(value);
+  return Number.isInteger(level) && level >= 1 && level <= 5 ? level : 0;
 }
 
 function validPassword(value: string) {

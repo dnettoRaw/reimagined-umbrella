@@ -1,4 +1,4 @@
-# PROEXEL configuration
+# PROEXEL configuration - CONCLUÍDO 100%
 
 Configuration is split between the AppCore application manifest, the deployment
 manifest and server-only environment variables. Never place bearer tokens,
@@ -32,7 +32,7 @@ untrusted network.
 | `APPCORE_APPLICATION_MANIFEST` | Rust service | Yes | Path to `application.toml` |
 | `APPCORE_DEPLOYMENT_MANIFEST` | Rust service | Yes | Path to the selected deployment manifest |
 | `PROEXEL_DATA_FILE` | Rust service | No | Overrides the canonical JSON state path |
-| `PROEXEL_ATTACHMENTS_DIR` | Next.js | No | Protected photo/signature root; defaults beside service runtime storage |
+| `PROEXEL_ATTACHMENTS_DIR` | Next.js | No | Protected machine/component/guide/inspection photo root; defaults beside service runtime storage |
 | `PROEXEL_SERVICE_URL` | Next.js | Yes | AppCore service base URL, normally `http://127.0.0.1:39400` |
 | `PROEXEL_SERVICE_TOKENS` | Next.js | Recommended | JSON map from capability name to scoped bearer token |
 | `PROEXEL_SERVICE_TOKEN` | Next.js | Compatibility only | Generic fallback token when no scoped map entry exists |

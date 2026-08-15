@@ -72,7 +72,17 @@ fn load_state(path: &Path) -> Result<ApplicationState, String> {
     }
     secure_file(path)?;
     let bytes = fs::read(path).map_err(|error| format!("storage_read_failed: {error}"))?;
-    serde_json::from_slice(&bytes).map_err(|error| format!("storage_decode_failed: {error}"))
+    let (state, migrated) = ApplicationState::decode_persisted(&bytes)?;
+    if migrated {
+        let backup = path.with_extension("schema-v1.json.bak");
+        if !backup.exists() {
+            fs::copy(path, &backup)
+                .map_err(|error| format!("storage_migration_backup_failed: {error}"))?;
+            secure_file(&backup)?;
+        }
+        persist_state(path, &state)?;
+    }
+    Ok(state)
 }
 
 fn persist_state(path: &Path, state: &ApplicationState) -> Result<(), String> {
@@ -179,14 +189,14 @@ mod tests {
         for handle in handles {
             handle.join().unwrap();
         }
-        assert_eq!(store.read().unwrap().schema_version, 201);
+        assert_eq!(store.read().unwrap().schema_version, 202);
         assert_eq!(
             JsonFileStore::new(&path)
                 .unwrap()
                 .read()
                 .unwrap()
                 .schema_version,
-            201
+            202
         );
         let _ = fs::remove_file(path);
     }

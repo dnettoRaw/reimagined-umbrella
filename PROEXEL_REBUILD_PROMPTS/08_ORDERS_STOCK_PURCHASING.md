@@ -16,7 +16,7 @@ Criação é permitida apenas aos papéis confirmados pelo mapa RBAC. Mudança d
 
 ## Schedule
 
-A antiga Agenda calcula prioridade de zona pela quantidade de válvulas críticas. Preserve a informação útil, mas não precisa copiar o layout. Ofereça calendário/lista com dados reais e um indicador de criticidade de zona derivado da mesma policy de manutenção.
+A antiga Agenda calculava prioridade por válvulas críticas. A implementação nova preserva a informação útil por meio de componentes críticos e do estado determinístico das máquinas, sem reproduzir a modelagem antiga.
 
 ## Restock Requests
 

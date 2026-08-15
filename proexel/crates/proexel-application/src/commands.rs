@@ -1,11 +1,21 @@
-pub const CREATE_VALVE: &str = "proexel.valves.create";
-pub const UPDATE_VALVE: &str = "proexel.valves.update";
-pub const ADD_VALVE_PHOTO: &str = "proexel.valves.add_photo";
-pub const DELETE_VALVE_PHOTO: &str = "proexel.valves.delete_photo";
-pub const REGISTER_MAINTENANCE: &str = "proexel.maintenance.register";
+pub const CREATE_ITEM_CATEGORY: &str = "proexel.item_categories.create";
+pub const UPDATE_ITEM_CATEGORY: &str = "proexel.item_categories.update";
+pub const CREATE_MACHINE: &str = "proexel.machines.create";
+pub const UPDATE_MACHINE: &str = "proexel.machines.update";
+pub const ADD_MACHINE_ITEM: &str = "proexel.machine_items.add";
+pub const UPDATE_MACHINE_ITEM: &str = "proexel.machine_items.update";
+pub const REORDER_MACHINE_ITEMS: &str = "proexel.machine_items.reorder";
+pub const REMOVE_MACHINE_ITEM: &str = "proexel.machine_items.remove";
+pub const REPLACE_MACHINE_ITEM: &str = "proexel.machine_items.replace";
+pub const ADD_PHOTO: &str = "proexel.photos.add";
+pub const DELETE_PHOTO: &str = "proexel.photos.delete";
 pub const CREATE_SERVICE_ORDER: &str = "proexel.orders.create";
-pub const CHANGE_SERVICE_ORDER_STATUS: &str = "proexel.orders.change_status";
+pub const START_SERVICE_ORDER: &str = "proexel.orders.start";
+pub const ASSIGN_ORDER_TASK: &str = "proexel.orders.assign_task";
 pub const DELETE_SERVICE_ORDER: &str = "proexel.orders.delete";
+pub const COMPLETE_SERVICE_ORDER: &str = "proexel.orders.complete";
+pub const START_INSPECTION: &str = "proexel.inspections.start";
+pub const COMPLETE_INSPECTION: &str = "proexel.inspections.complete";
 pub const CREATE_RESTOCK_REQUEST: &str = "proexel.purchasing.create_restock_request";
 pub const REVIEW_RESTOCK_REQUEST: &str = "proexel.purchasing.review_restock_request";
 pub const DELETE_RESTOCK_REQUEST: &str = "proexel.purchasing.delete_restock_request";
@@ -18,27 +28,40 @@ pub const DELETE_SUPPLIER: &str = "proexel.suppliers.delete";
 pub const CREATE_USER: &str = "proexel.admin.users.create";
 pub const UPDATE_USER: &str = "proexel.admin.users.update";
 pub const RESET_USER_CREDENTIALS: &str = "proexel.admin.users.reset_credentials";
-pub const LIST_VALVES: &str = "proexel.valves.list";
+
 pub const GET_OVERVIEW: &str = "proexel.overview.get";
-pub const LIST_MAINTENANCE: &str = "proexel.maintenance.list";
+pub const LIST_ITEM_CATEGORIES: &str = "proexel.item_categories.list";
+pub const LIST_MACHINES: &str = "proexel.machines.list";
 pub const LIST_SERVICE_ORDERS: &str = "proexel.orders.list";
+pub const LIST_INSPECTIONS: &str = "proexel.inspections.list";
 pub const LIST_RESTOCK_REQUESTS: &str = "proexel.purchasing.list_restock_requests";
 pub const LIST_STOCK: &str = "proexel.stock.list";
 pub const LIST_SUPPLIERS: &str = "proexel.suppliers.list";
 pub const LIST_AUDIT: &str = "proexel.audit.list";
 pub const GET_REPORTS: &str = "proexel.reports.get";
 pub const LIST_USERS: &str = "proexel.admin.users.list";
+pub const LIST_OPERATORS: &str = "proexel.operators.list";
 pub const RESOLVE_IDENTITY: &str = "proexel.identity.resolve";
 
 pub const COMMANDS: &[&str] = &[
-    CREATE_VALVE,
-    UPDATE_VALVE,
-    ADD_VALVE_PHOTO,
-    DELETE_VALVE_PHOTO,
-    REGISTER_MAINTENANCE,
+    CREATE_ITEM_CATEGORY,
+    UPDATE_ITEM_CATEGORY,
+    CREATE_MACHINE,
+    UPDATE_MACHINE,
+    ADD_MACHINE_ITEM,
+    UPDATE_MACHINE_ITEM,
+    REORDER_MACHINE_ITEMS,
+    REMOVE_MACHINE_ITEM,
+    REPLACE_MACHINE_ITEM,
+    ADD_PHOTO,
+    DELETE_PHOTO,
     CREATE_SERVICE_ORDER,
-    CHANGE_SERVICE_ORDER_STATUS,
+    START_SERVICE_ORDER,
+    ASSIGN_ORDER_TASK,
     DELETE_SERVICE_ORDER,
+    COMPLETE_SERVICE_ORDER,
+    START_INSPECTION,
+    COMPLETE_INSPECTION,
     CREATE_RESTOCK_REQUEST,
     REVIEW_RESTOCK_REQUEST,
     DELETE_RESTOCK_REQUEST,
@@ -55,14 +78,16 @@ pub const COMMANDS: &[&str] = &[
 
 pub const QUERIES: &[&str] = &[
     GET_OVERVIEW,
-    LIST_VALVES,
-    LIST_MAINTENANCE,
+    LIST_ITEM_CATEGORIES,
+    LIST_MACHINES,
     LIST_SERVICE_ORDERS,
+    LIST_INSPECTIONS,
     LIST_RESTOCK_REQUESTS,
     LIST_STOCK,
     LIST_SUPPLIERS,
     LIST_AUDIT,
     GET_REPORTS,
     LIST_USERS,
+    LIST_OPERATORS,
     RESOLVE_IDENTITY,
 ];

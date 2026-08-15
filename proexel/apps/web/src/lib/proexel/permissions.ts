@@ -2,22 +2,27 @@ import type { Role } from "./types";
 
 export function can(permission: string, role: Role): boolean {
   switch (permission) {
-    case "valve.read":
-    case "maintenance.register":
-    case "maintenance.read":
+    case "item_category.read":
+    case "machine.read":
+    case "inspection.execute":
+    case "inspection.read":
     case "order.read":
       return role === "admin" || role === "chefe" || role === "tecnico";
-    case "valve.create":
+    case "operator.read":
+      return role === "admin" || role === "chefe";
+    case "machine.create":
+    case "machine.update":
+    case "machine_item.manage":
+    case "photo.manage_reference":
     case "order.create":
-    case "order.change_status":
+    case "order.manage":
     case "order.delete":
     case "restock.approve_reject":
     case "restock.delete":
     case "report.read":
     case "audit.read":
       return role === "admin" || role === "chefe";
-    case "valve.update_technical_fields":
-    case "valve.update_photo":
+    case "item_category.manage":
     case "supplier.read":
     case "supplier.create_update_delete":
     case "admin.manage":

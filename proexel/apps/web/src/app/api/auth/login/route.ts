@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       email: user.email,
       name: user.name,
       role: user.role,
+      maximum_repair_level: user.maximum_repair_level,
       ver: user.auth_version,
       exp: now + maxAge * 1000,
     },

@@ -1,84 +1,38 @@
-# Prompt 02 — Arquitetura-alvo PROEXEL + AppCore — CONCLUÍDO 100%
+# Prompt 02 - Arquitetura-alvo PROEXEL + AppCore - CONCLUÍDO 100%
 
-Com base no discovery, desenhe e aplique a arquitetura-alvo do novo PROEXEL.
+## Decisão entregue
 
-## Restrição principal
+AppCore continua sendo runtime genérico. Machine, MachineItem, ItemCategory,
+MaintenanceGuide, ServiceOrder, ItemInspection, estoque, compras e usuários são
+conceitos exclusivos do workspace `proexel/`.
 
-O AppCore é runtime genérico. Não adicione `proexel-*`, Valve, Maintenance, Stock, Supplier ou outra regra de negócio em `AppCore-Runtime/crates`.
+## Camadas
 
-## Estrutura desejada
+- `proexel-domain`: entidades, value objects, snapshots e policies.
+- `proexel-application`: commands, queries, RBAC, transações e auditoria.
+- `proexel-infrastructure`: persistência JSON atômica e anexos protegidos.
+- `proexel-migration`: importação legada determinística.
+- `apps/service`: composition root hospedado pelo AppCore.
+- `apps/web`: sessão, proxy de capabilities e UI administrativa.
 
-Prefira um workspace próprio semelhante a:
+## Modelo final
 
-```text
-proexel/
-  apps/
-    web/                 # Next.js baseado no admin-dashboard
-    service/             # composition root/backend da aplicação, se aplicável
-  crates/
-    proexel-domain/
-    proexel-application/
-    proexel-infrastructure/
-    proexel-migration/
-  packages/
-    contracts/           # tipos/DTOs compartilhados com a UI, se necessário
-  migrations/
-  docs/
-```
+`MachineItem` é a posição funcional estável. `InstalledComponent` é a unidade
+física atual. `MachineItemReplacement` preserva cada troca. `ItemCategory` define
+campos dinâmicos e o guia versionado. OS e inspeções mantêm snapshots suficientes
+para que alterações futuras não reescrevam o contexto histórico.
 
-Adapte se houver uma razão concreta, mas preserve as fronteiras.
+## Dependências
 
-## Domínio
+As dependências apontam de infraestrutura/serviço para aplicação e domínio. Um
+teste de boundary impede que domínio/aplicação dependam de AppCore ou da web.
+Nenhum crate genérico do AppCore recebeu regra de negócio PROEXEL.
 
-Defina agregados/value objects/enums para pelo menos:
+## Persistência e topologia
 
-- Valve
-- MaintenanceRecord
-- ServiceOrder
-- RestockRequest
-- StockItem
-- Supplier
-- User/Role/Permission (ou integração equivalente)
-- ValvePhoto metadata
-- AuditEvent
+O estado canônico schema v2 é transacionado e auditado em arquivo local. O
+schema v1 é migrado automaticamente com backup. A topologia suportada é local
+read/write; sync remoto não é simulado.
 
-Não modele tudo como `serde_json::Value` ou mapas genéricos.
-
-## Application layer
-
-Crie comandos e queries explícitos, por exemplo:
-
-- CreateValve / UpdateValve / GetValve / SearchValves
-- RegisterMaintenance
-- CreateServiceOrder / ChangeServiceOrderStatus
-- CreateRestockRequest / ReviewRestockRequest
-- AdjustStock / UpsertStockItem
-- CreateSupplier / UpdateSupplier
-- ListAuditEvents
-- GenerateReportData
-
-Os nomes podem variar, mas a separação deve existir.
-
-## AppCore
-
-Identifique e use apenas APIs públicas estáveis. Escreva `docs/adr/0001-appcore-consumer-boundary.md` explicando:
-
-- o que PROEXEL delega ao runtime;
-- o que continua sendo responsabilidade da aplicação;
-- storage;
-- audit/observability;
-- sync;
-- security/auth;
-- health/lifecycle;
-- update;
-- deployment standalone/distributed, se aplicável.
-
-Crie um `ApplicationManifestV1` válido para PROEXEL com capabilities funcionais, sem caminhos/segredos de instalação.
-
-## Comunicação UI ↔ aplicação
-
-A UI não deve importar crates Rust nem saber detalhes de banco. Defina uma API/transport local clara, versionada, com DTOs e erros tipados. Se o AppCore já expõe a composição HTTP adequada para consumidores, reutilize o contrato público em vez de inventar um framework paralelo.
-
-## Qualidade
-
-Implemente skeleton compilável, não apenas documentação. Adicione testes arquiteturais simples ou checks que reduzam risco de o domínio passar a depender da camada web/infrastructure.
+Referência detalhada: `docs/architecture.md` e
+`docs/appcore-integration-surface.md`.

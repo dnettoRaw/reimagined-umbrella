@@ -1,4 +1,4 @@
-# PROEXEL migration runbook
+# PROEXEL migration runbook - CONCLUÍDO 100%
 
 ## Input contract
 
@@ -21,12 +21,12 @@ supported top-level collections and the main Portuguese aliases.
 4. Back up the canonical state as described in
    [`backup-restore.md`](backup-restore.md).
 5. Run `proexel-migrate` with `--dry-run` and both report outputs.
-6. Review skipped records, unresolved valve links, brand/location warnings, and
+6. Review skipped records, unresolved legacy links, brand/location warnings, and
    source-versus-imported counts.
 7. Run the same command without `--dry-run` and with the same batch ID.
 8. Run it a second time. Imported counts must be zero.
-9. Start the stack and compare valve, maintenance, stock, order, supplier, and
-   photo metadata counts against the report.
+9. Start the stack and compare imported machines, components, inspections,
+   orders, stock, suppliers, and photo metadata against the report.
 
 The release smoke test executes these three phases against a temporary state:
 
@@ -52,8 +52,8 @@ stock export already represents its current balance.
 - Dry-run leaves the state-file checksum unchanged.
 - The first write reports the reviewed import and warning counts.
 - Repeating the same batch imports zero records.
-- Every imported maintenance and photo metadata record resolves to an immutable
-  valve ID.
+- Every legacy valve maps to a MachineItem in the reusable Valve category; its
+  maintenance and photo metadata resolve to immutable machine/item IDs.
 - Stock quantities remain non-negative and match the legacy cutover snapshot.
 - The audit view contains the migration batch event and source checksum.
 - Users and credentials are provisioned separately; they are never imported by

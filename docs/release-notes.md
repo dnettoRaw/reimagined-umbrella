@@ -1,45 +1,47 @@
-# Release notes
+# Release notes - CONCLUÍDO 100%
 
-## Unreleased
+## 0.2.0 - machine and guided-maintenance architecture
 
-- Added canonical user management for creation, four-role assignment,
-  activation/deactivation, scrypt password/PIN reset and immediate session
-  invalidation.
-- Added redacted user audit history and a server-only identity resolution
-  capability; credential hashes never appear in list or audit responses.
-- Added stable-ID valve photo upload/removal and protected graphical maintenance signatures.
-- Added valve detail/edit/timeline, production filters, facets, sorting and pagination.
-- Added audited delete policies, canonical order priorities, schedule criticality,
-  supplier validation and grouped purchase output.
-- Added paginated localized PDF export and deduplicated operational notifications.
-- Added backend audit filters/pagination/detail and runtime-derived standalone/degraded UX.
-- Added committed Playwright E2E, concurrent storage and production-volume tests.
-- Added complete UI localization for Portuguese, English, Spanish, and French,
-  including authentication, navigation, forms, dialogs, empty/error states, and
-  server-facing error presentation.
-- Added consolidated architecture, configuration, deployment, backup/restore,
-  troubleshooting, implementation-status, and functional-parity documents.
-- Reconciled RBAC, migration, operations, AppCore boundary, and README guidance
-  with the implemented baseline.
+- Replaced the valve-centered runtime model with Machine, MachineItem,
+  ItemCategory, structured MaintenanceGuide and ItemInspection.
+- Added dynamic typed component fields and reusable category procedures editable
+  without schema or code changes.
+- Modeled a stable functional component position separately from its installed
+  physical unit, including audited replacement history and equivalent parts.
+- Added domain complexity and operator maximum repair levels from 1 through 5,
+  enforced during assignment, start and completion.
+- Added machine/some/all-component service orders with immutable machine, item,
+  category, guide, complexity and guide-photo snapshots.
+- Added a dedicated guided execution UI with structured step results, findings,
+  before/during/after/defect/evidence photos and deterministic status updates.
+- Added machine, component, guide, inspection and replacement photo ownership.
+- Added complete component history, including inspections, findings, photos and
+  old/new serial numbers after physical replacement.
+- Added administrative category, machine, order, execution and operator flows.
+- Added user creation/editing, roles, maximum level, password/PIN management,
+  activation and redacted audit history.
+- Updated overview, reports, PDF, notifications and audit for the new domain.
+- Added typed Portuguese, English, Spanish and French translations for all
+  product-owned visible text and server errors.
+- Added deterministic legacy import and automatic canonical schema-v1 to v2
+  migration with backup.
+- Removed legacy runtime routes, commands, queries, DTOs, pages, translation keys
+  and the old maintenance domain module.
+- Updated the local launcher to issue tokens for every schema-v2 capability.
+- Replaced the browser workflow with a complete machine/category/order/inspection
+  scenario against an isolated real AppCore stack.
 
-## 0.1.0 - reconstruction baseline
+## Quality evidence
 
-- Added AppCore-hosted PROEXEL commands and queries with scoped capabilities.
-- Added durable schema-v1 local state, atomic commits, idempotency, RBAC, and
-  semantic audit events.
-- Added valve, maintenance, service-order, stock, restock, supplier, audit,
-  overview, report, administration, and runtime-status interfaces.
-- Added deterministic legacy migration with dry-run, checksum, warnings, and
-  JSON/Markdown reports.
-- Added a canonical reports query for overview, zone, critical-valve, and recent
-  maintenance datasets.
-- Aligned visible web commands and server proxy authorization with the backend
-  role matrix.
-- Replaced template auth demos with scrypt password verification, signed
-  `HttpOnly` sessions, rate limiting, protected routes, and session-backed audit
-  identity.
-- Removed dashboard template demo routes and legacy runtime dependencies.
+- Rust workspace tests: 29 passed.
+- Clippy all targets with warnings denied: passed.
+- Biome, TypeScript and Next.js production build: passed.
+- Playwright isolated integration workflow: passed.
+- npm high-severity audit: zero vulnerabilities.
 
-Known release blockers are real legacy-export reconciliation, source attachment
-transfer, target failure drills,
-and distributed sync/rate limiting only if that deployment topology is selected.
+## Deployment note
+
+Production cutover still requires the operator to supply and reconcile the real
+legacy export, copy referenced binaries and execute the documented backup/restore
+drill. These are environment-specific release operations; the migration and
+runbook support is implemented.

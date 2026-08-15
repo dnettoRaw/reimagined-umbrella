@@ -74,12 +74,12 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex justify-between">
-              <span>{t("settings.warningMaintenance")}</span>
-              <strong>{t("settings.days150")}</strong>
+              <span>{t("settings.complexityPolicy")}</span>
+              <strong>1..5</strong>
             </div>
             <div className="flex justify-between">
-              <span>{t("settings.criticalMaintenance")}</span>
-              <strong>{t("settings.days180")}</strong>
+              <span>{t("settings.operatorPolicy")}</span>
+              <strong>{t("common.required")}</strong>
             </div>
             <div className="flex justify-between">
               <span>{t("settings.negativeStock")}</span>
@@ -87,7 +87,7 @@ export default async function SettingsPage() {
             </div>
             <div className="flex justify-between">
               <span>{t("settings.localSchema")}</span>
-              <strong>v1</strong>
+              <strong>v2</strong>
             </div>
           </CardContent>
         </Card>

@@ -1,4 +1,4 @@
-import type { Role } from "./types";
+import type { ComplexityLevel, Role } from "./types";
 
 export const SESSION_COOKIE = "proexel_session";
 
@@ -7,6 +7,7 @@ export interface ProexelSession {
   email: string;
   name: string;
   role: Role;
+  maximum_repair_level: ComplexityLevel;
   ver: number;
   exp: number;
 }
@@ -62,6 +63,7 @@ export async function verifySession(
       !session.email ||
       !session.name ||
       !ROLES.includes(session.role) ||
+      ![1, 2, 3, 4, 5].includes(session.maximum_repair_level) ||
       !Number.isSafeInteger(session.ver) ||
       !Number.isSafeInteger(session.exp) ||
       session.exp <= Date.now()

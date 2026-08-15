@@ -19,10 +19,15 @@ mkdir -p "$(dirname "$SECRET")"
 chmod 600 "$SECRET"
 
 commands=(
-  proexel.valves.create proexel.valves.update
-  proexel.valves.add_photo proexel.valves.delete_photo
-  proexel.maintenance.register
-  proexel.orders.create proexel.orders.change_status proexel.orders.delete
+  proexel.item_categories.create proexel.item_categories.update
+  proexel.machines.create proexel.machines.update
+  proexel.machine_items.add proexel.machine_items.update
+  proexel.machine_items.reorder proexel.machine_items.remove
+  proexel.machine_items.replace
+  proexel.photos.add proexel.photos.delete
+  proexel.orders.create proexel.orders.start proexel.orders.assign_task
+  proexel.orders.delete proexel.orders.complete
+  proexel.inspections.start proexel.inspections.complete
   proexel.purchasing.create_restock_request proexel.purchasing.review_restock_request
   proexel.purchasing.delete_restock_request
   proexel.stock.adjust proexel.stock.upsert_item proexel.stock.delete_item
@@ -31,11 +36,12 @@ commands=(
   proexel.admin.users.reset_credentials
 )
 queries=(
-  proexel.overview.get proexel.valves.list proexel.maintenance.list
-  proexel.orders.list proexel.purchasing.list_restock_requests
+  proexel.overview.get proexel.item_categories.list proexel.machines.list
+  proexel.orders.list proexel.inspections.list
+  proexel.purchasing.list_restock_requests
   proexel.stock.list proexel.suppliers.list proexel.audit.list
   proexel.reports.get
-  proexel.admin.users.list proexel.identity.resolve
+  proexel.admin.users.list proexel.operators.list proexel.identity.resolve
 )
 
 tokens="{"

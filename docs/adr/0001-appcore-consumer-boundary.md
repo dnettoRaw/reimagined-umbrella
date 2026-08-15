@@ -1,4 +1,4 @@
-# ADR 0001: AppCore consumer boundary
+# ADR 0001: AppCore consumer boundary - CONCLUÍDO 100%
 
 Status: accepted, 2026-08-13.
 
@@ -39,9 +39,10 @@ The application is split into:
 ## PROEXEL responsibilities
 
 - Domain schema, migrations and local data model.
-- Valve, maintenance, stock, order, purchasing, supplier, report and audit rules.
+- Machine, component category, guided inspection, stock, order, purchasing,
+  supplier, report and audit rules.
 - RBAC permissions and command/query authorization.
-- Idempotent maintenance stock debit.
+- Idempotent command processing and deterministic state transitions.
 - Conflict and ownership policy for local-first operation.
 - Legacy import and compatibility aliases.
 - UI routes, forms, tables, reports and i18n.
@@ -52,9 +53,9 @@ PROEXEL owns schema versioning and domain migrations. AppCore storage providers
 may be used as the generic persistence boundary, but they do not define PROEXEL
 tables or business transactions.
 
-Maintenance registration with kit change must be an application transaction:
-insert maintenance record, debit stock when applicable, and persist local audit.
-If a provider cannot satisfy that transaction, the command fails explicitly.
+Order, inspection and stock writes are application transactions that persist the
+domain change, idempotency receipt and audit event atomically. If a provider
+cannot satisfy that transaction, the command fails explicitly.
 
 ## Audit and observability
 

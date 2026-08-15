@@ -17,10 +17,10 @@ import { PageHeader } from "../_components/page-header";
 import { ProexelEmptyState } from "../_components/proexel-empty-state";
 
 const rows: readonly [TranslationKey, boolean, boolean, boolean, boolean][] = [
-  ["admin.readValves", true, true, false, true],
-  ["admin.createValves", true, true, false, false],
-  ["admin.editTechnical", true, false, false, false],
-  ["admin.registerMaintenance", true, true, false, true],
+  ["admin.readMachines", true, true, false, true],
+  ["admin.manageMachines", true, true, false, false],
+  ["admin.manageCategories", true, false, false, false],
+  ["admin.executeInspections", true, true, false, true],
   ["admin.manageOrders", true, true, false, false],
   ["admin.adjustStock", true, true, true, false],
   ["admin.reviewRestock", true, true, false, false],
@@ -60,6 +60,14 @@ export default async function AdminPage() {
               { name: "name", label: t("common.name"), required: true },
               { name: "email", label: t("common.email"), type: "email", required: true },
               { name: "role", label: t("common.role"), type: "select", required: true, options: roleOptions },
+              {
+                name: "maximum_repair_level",
+                label: t("admin.maximumRepairLevel"),
+                type: "select",
+                required: true,
+                defaultValue: 3,
+                options: repairLevelOptions(t),
+              },
               { name: "password", label: t("admin.password"), type: "password", required: true },
               { name: "pin", label: t("admin.pinOptional"), type: "password" },
             ]}
@@ -166,6 +174,7 @@ function UsersCard({
                   <TableHead>{t("common.email")}</TableHead>
                   <TableHead>{t("common.role")}</TableHead>
                   <TableHead>{t("common.status")}</TableHead>
+                  <TableHead>{t("admin.maximumRepairLevel")}</TableHead>
                   <TableHead>{t("admin.pin")}</TableHead>
                   <TableHead>{t("admin.updatedAt")}</TableHead>
                   <TableHead className="text-right">{t("common.actions")}</TableHead>
@@ -183,6 +192,9 @@ function UsersCard({
                       <Badge variant={user.active ? "outline" : "destructive"}>
                         {user.active ? t("admin.active") : t("admin.disabled")}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{user.maximum_repair_level}/5</Badge>
                     </TableCell>
                     <TableCell>{user.has_pin ? t("admin.configured") : t("common.notConfigured")}</TableCell>
                     <TableCell>
@@ -229,6 +241,14 @@ function UsersCard({
                               label: t("admin.activeAccount"),
                               type: "checkbox",
                               defaultValue: user.active,
+                            },
+                            {
+                              name: "maximum_repair_level",
+                              label: t("admin.maximumRepairLevel"),
+                              type: "select",
+                              required: true,
+                              options: repairLevelOptions(t),
+                              defaultValue: user.maximum_repair_level,
                             },
                           ]}
                         />
@@ -346,4 +366,11 @@ function userOperation(description: string | null | undefined, t: Awaited<Return
   if (description === "User updated") return t("admin.userUpdated");
   if (description === "User credentials reset") return t("admin.userCredentialsReset");
   return description ?? "-";
+}
+
+function repairLevelOptions(t: Awaited<ReturnType<typeof getI18n>>["t"]) {
+  return ([1, 2, 3, 4, 5] as const).map((level) => ({
+    value: String(level),
+    label: `${level} - ${t(`complexity.${level}`)}`,
+  }));
 }

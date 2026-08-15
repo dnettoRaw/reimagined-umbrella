@@ -55,7 +55,7 @@ Run the isolated, ephemeral browser workflow from the repository root:
 ./proexel/scripts/e2e.sh
 ```
 
-Photo and signature bytes default to
+Photo bytes default to
 `proexel/apps/service/target/runtime/attachments`; set
 `PROEXEL_ATTACHMENTS_DIR` to an absolute private path in deployed environments.
 
@@ -78,17 +78,17 @@ APPCORE_DEPLOYMENT_MANIFEST=proexel/apps/service/deployment.local.toml \
 cargo run --manifest-path proexel/Cargo.toml -p proexel-service
 ```
 
-To call `proexel.valves.list` directly:
+To call `proexel.machines.list` directly:
 
 ```bash
 TOKEN=$(cargo run --quiet --manifest-path core/AppCore-Runtime/Cargo.toml -p appcore-bin --bin appcore-bin -- \
   token query \
   --deployment proexel/apps/service/deployment.local.toml \
-  --query proexel.valves.list)
+  --query proexel.machines.list)
 
 curl -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"query_name":"proexel.valves.list","query_id":"qry-local-smoke","payload":{"actor":{"id":"smoke-admin","name":"Smoke Admin","role":"admin"},"data":{}}}' \
+  -d '{"query_name":"proexel.machines.list","query_id":"qry-local-smoke","payload":{"actor":{"id":"smoke-admin","name":"Smoke Admin","role":"admin"},"data":{}}}' \
   http://127.0.0.1:39400/v1/query
 ```
 

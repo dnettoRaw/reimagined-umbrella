@@ -1,6 +1,6 @@
 manifest_version = 1
 application_id = "proexel"
-application_version = "0.1.0"
+application_version = "0.2.0"
 display_name = "PROEXEL"
 vendor = "PROEXEL"
 service_id = "proexel.service"
@@ -8,7 +8,7 @@ leadership = []
 dependencies = []
 modules = []
 feature_flags = {}
-metadata = { domain_schema = "1" }
+metadata = { domain_schema = "2" }
 
 [runtime]
 minimum_runtime_version = "1.0.0-rc.3"
@@ -16,7 +16,7 @@ protocol_version = "1"
 required_features = []
 
 [[capabilities]]
-id = "proexel.valves.create"
+id = "proexel.item_categories.create"
 version = "1"
 mode = "command"
 visibility = "local"
@@ -24,7 +24,7 @@ requires_leader = false
 idempotency_required = true
 
 [[capabilities]]
-id = "proexel.valves.update"
+id = "proexel.item_categories.update"
 version = "1"
 mode = "command"
 visibility = "local"
@@ -32,7 +32,7 @@ requires_leader = false
 idempotency_required = true
 
 [[capabilities]]
-id = "proexel.valves.add_photo"
+id = "proexel.machines.create"
 version = "1"
 mode = "command"
 visibility = "local"
@@ -40,7 +40,7 @@ requires_leader = false
 idempotency_required = true
 
 [[capabilities]]
-id = "proexel.valves.delete_photo"
+id = "proexel.machines.update"
 version = "1"
 mode = "command"
 visibility = "local"
@@ -48,7 +48,55 @@ requires_leader = false
 idempotency_required = true
 
 [[capabilities]]
-id = "proexel.maintenance.register"
+id = "proexel.machine_items.add"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.machine_items.update"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.machine_items.reorder"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.machine_items.remove"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.machine_items.replace"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.photos.add"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.photos.delete"
 version = "1"
 mode = "command"
 visibility = "local"
@@ -64,7 +112,15 @@ requires_leader = false
 idempotency_required = true
 
 [[capabilities]]
-id = "proexel.orders.change_status"
+id = "proexel.orders.start"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.orders.assign_task"
 version = "1"
 mode = "command"
 visibility = "local"
@@ -73,6 +129,30 @@ idempotency_required = true
 
 [[capabilities]]
 id = "proexel.orders.delete"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.orders.complete"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.inspections.start"
+version = "1"
+mode = "command"
+visibility = "local"
+requires_leader = false
+idempotency_required = true
+
+[[capabilities]]
+id = "proexel.inspections.complete"
 version = "1"
 mode = "command"
 visibility = "local"
@@ -184,7 +264,7 @@ requires_leader = false
 idempotency_required = false
 
 [[capabilities]]
-id = "proexel.valves.list"
+id = "proexel.item_categories.list"
 version = "1"
 mode = "query"
 visibility = "local"
@@ -192,7 +272,7 @@ requires_leader = false
 idempotency_required = false
 
 [[capabilities]]
-id = "proexel.maintenance.list"
+id = "proexel.machines.list"
 version = "1"
 mode = "query"
 visibility = "local"
@@ -201,6 +281,14 @@ idempotency_required = false
 
 [[capabilities]]
 id = "proexel.orders.list"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.inspections.list"
 version = "1"
 mode = "query"
 visibility = "local"
@@ -257,6 +345,14 @@ idempotency_required = false
 
 [[capabilities]]
 id = "proexel.identity.resolve"
+version = "1"
+mode = "query"
+visibility = "local"
+requires_leader = false
+idempotency_required = false
+
+[[capabilities]]
+id = "proexel.operators.list"
 version = "1"
 mode = "query"
 visibility = "local"

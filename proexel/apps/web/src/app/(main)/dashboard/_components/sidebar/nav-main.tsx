@@ -172,12 +172,12 @@ export function NavMain({ items, role }: NavMainProps) {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  tooltip={t("nav.createValve")}
+                  tooltip={t("nav.createMachine")}
                   className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
                 >
-                  <Link href="/dashboard/valves">
+                  <Link href="/dashboard/machines">
                     <PlusCircleIcon />
-                    <span>{t("nav.createValve")}</span>
+                    <span>{t("nav.createMachine")}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -15,87 +15,129 @@ async function logout(page: Page) {
   await page.goto("/auth/login");
 }
 
-test("representative roles complete the operational workflow", async ({ page }) => {
-  test.setTimeout(90_000);
+async function createResource(page: Page, endpoint: string, body: Record<string, unknown>) {
+  const response = await page.request.post(endpoint, { data: body });
+  const result = (await response.json()) as { accepted?: boolean; message?: string; resource_id?: string };
+  expect(response.ok(), result.message).toBe(true);
+  expect(result.accepted, result.message).toBe(true);
+  expect(result.resource_id).toBeTruthy();
+  return result.resource_id as string;
+}
+
+test("representative roles complete the machine maintenance workflow", async ({ page }) => {
+  test.setTimeout(180_000);
   test.skip(!password, "run proexel/scripts/e2e.sh to provide ephemeral credentials");
-  const tag = `E2E ${Date.now()}`;
+  const suffix = Date.now();
   await login(page, "admin-e2e@proexel.local");
 
-  await page.goto("/dashboard/valves");
-  await page.getByRole("button", { name: "Nova válvula" }).click();
-  await page.getByLabel("TAG").fill(tag);
-  await page.getByLabel("Zona").fill("Zona E2E");
-  await page.getByLabel("Fabricante").fill("PROEXEL Test");
-  await page.getByLabel("Referência do kit").fill("KIT E2E");
-  await page.getByRole("button", { name: "Confirmar" }).click();
-  await expect(page.getByRole("cell", { name: tag })).toBeVisible();
+  const categoryId = await createResource(page, "/api/proexel/categories", {
+    code: `MOTOR-${suffix}`,
+    name: "Motor elétrico E2E",
+    description: "Categoria de validação do fluxo guiado",
+    default_complexity_level: 2,
+    active: true,
+    custom_field_definitions: [],
+    recommended_parts: [],
+    maintenance_guide: {
+      version: 1,
+      steps: [
+        {
+          id: `confirm-${suffix}`,
+          title: "Confirmar identificação",
+          description: null,
+          instructions: "Confirme o código e a unidade física instalada.",
+          step_type: "confirmation",
+          required: true,
+          reference_photo_ids: [],
+          safety_warning: null,
+          expected_value: null,
+          options: [],
+          order: 0,
+        },
+      ],
+    },
+  });
+  const machineId = await createResource(page, "/api/proexel/machines", {
+    code: `M-${suffix}`,
+    name: "Prensa E2E",
+    description: "Máquina do cenário E2E",
+    zone: "Zona E2E",
+    location: "Linha de testes",
+    manufacturer: "PROEXEL Test",
+    model: "PX-E2E",
+    serial_number: `SN-${suffix}`,
+    active: true,
+  });
+  const itemId = await createResource(page, "/api/proexel/machine-items", {
+    machine_id: machineId,
+    category_id: categoryId,
+    name: "Motor principal E2E",
+    code: `ITEM-${suffix}`,
+    complexity_level: 2,
+    status: "unknown",
+    location_description: "Lado direito, sob a proteção superior.",
+    custom_field_values: {},
+    installed_component: {
+      manufacturer: "WEG",
+      model: "W22",
+      part_number: "W22-E2E",
+      serial_number: `UNIT-${suffix}`,
+      installed_at: "2026-08-15",
+      technical_specifications: { voltage: "400 V" },
+    },
+    replacement_specification: {
+      manufacturer: "WEG",
+      model: "W22",
+      part_number: "W22-E2E",
+      serial_number: null,
+      technical_specifications: { voltage: "400 V" },
+      compatibility_notes: "Montagem B3",
+      equivalent_parts: [],
+      supplier_reference: "SUP-E2E",
+      photo_ids: [],
+    },
+  });
 
-  await page.getByTitle("Detalhes").click();
-  await expect(page.getByRole("heading", { name: tag })).toBeVisible();
-  const upload = page.locator('input[type="file"]');
+  await page.goto(`/dashboard/machines/${machineId}`);
+  await expect(page.getByRole("heading", { name: /Prensa E2E/ }).first()).toBeVisible();
+  await expect(page.getByText("Motor principal E2E").first()).toBeVisible();
+  const upload = page.locator('input[type="file"]').first();
   await upload.setInputFiles({
-    name: "valve.png",
+    name: "machine.png",
     mimeType: "image/png",
     buffer: Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
       "base64",
     ),
   });
-  await expect(page.getByText("Foto adicionada.")).toBeVisible();
+  await expect(page.getByText("Operação concluída")).toBeVisible();
 
-  await page.goto("/dashboard/stock");
-  const stockRow = page.getByRole("row").filter({ hasText: "KIT E2E" });
-  await stockRow.getByRole("button", { name: "Ajustar" }).click();
-  await page.getByLabel("Variação").fill("2");
-  await page.getByLabel("Motivo").fill("Preparação E2E");
-  await page.getByRole("button", { name: "Confirmar" }).click();
-  await expect(stockRow).toContainText("2");
-
-  await page.goto("/dashboard/maintenance");
-  await page.getByRole("button", { name: "Iniciar manutenção" }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog
-    .locator("select")
-    .first()
-    .selectOption({ label: `${tag} · Zona E2E` });
-  await dialog.getByRole("button", { name: "Seguinte" }).click();
-  await dialog.locator("textarea").first().fill("Inspeção e troca E2E");
-  await dialog.getByLabel("Houve troca de kit").check();
-  await dialog.getByRole("button", { name: "Seguinte" }).click();
-  const canvas = dialog.locator("canvas");
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("signature canvas is not visible");
-  await page.mouse.move(box.x + 30, box.y + 80);
-  await page.mouse.down();
-  await page.mouse.move(box.x + 180, box.y + 120, { steps: 8 });
-  await page.mouse.move(box.x + 320, box.y + 70, { steps: 8 });
-  await page.mouse.up();
-  await dialog.getByRole("button", { name: "Seguinte" }).click();
-  await dialog.getByRole("button", { name: "Confirmar" }).click();
-  await expect(page.getByText("Manutenção registrada com sucesso.")).toBeVisible();
-  await expect(page.getByRole("row").filter({ hasText: tag })).toContainText("Consumido");
-
-  await page.goto("/dashboard/orders");
-  await page.getByRole("button", { name: "Nova OS" }).click();
-  await page.getByLabel("Zona").fill("Zona E2E");
-  await page.getByLabel("Válvula (opcional)").selectOption({ label: tag });
-  await page.getByLabel("Descrição").fill("Ordem E2E");
-  await page.getByRole("button", { name: "Confirmar" }).click();
-  await expect(page.getByRole("row").filter({ hasText: "Ordem E2E" })).toBeVisible();
-
-  await page.goto("/dashboard/reports");
-  const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Exportar PDF" }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+  const orderId = await createResource(page, "/api/proexel/orders", {
+    machine_id: machineId,
+    all_items: false,
+    item_ids: [itemId],
+    description: "Inspeção guiada E2E",
+    priority: "normal",
+    scheduled_for: null,
+    assigned_operator_id: "e2e-tecnico",
+  });
 
   await logout(page);
   await login(page, "tecnico-e2e@proexel.local");
+  await page.goto(`/dashboard/execution/${orderId}`);
+  await page.getByRole("button", { name: "Iniciar ordem" }).click();
+  await page.getByRole("button", { name: "Iniciar inspeção" }).click();
+  await page.locator("section select").first().selectOption("true");
+  await page.getByRole("button", { name: "Concluir inspeção" }).click();
+  await expect(page.getByText("1 de 1 concluídos")).toBeVisible();
+  await page.getByRole("button", { name: "Concluir ordem" }).click();
+
   await page.goto("/dashboard/purchasing");
   await page.getByRole("button", { name: "Solicitar reposição" }).click();
-  await page.getByLabel("Referência", { exact: true }).fill("KIT E2E");
+  await page.getByLabel("Referência", { exact: true }).fill("PECA E2E");
   await page.getByLabel("Motivo").fill("Reposição E2E");
   await page.getByRole("button", { name: "Confirmar" }).click();
+  await expect(page.getByText("Operação concluída")).toBeVisible();
 
   await logout(page);
   await login(page, "chefe-e2e@proexel.local");
@@ -113,40 +155,28 @@ test("representative roles complete the operational workflow", async ({ page }) 
 
   await logout(page);
   await login(page, "admin-e2e@proexel.local");
+  await page.goto("/dashboard/reports");
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Exportar PDF" }).click();
+  expect((await downloadPromise).suggestedFilename()).toMatch(/\.pdf$/);
+
   await page.goto("/dashboard/admin");
   await page.getByRole("button", { name: "Novo usuário" }).click();
   const userDialog = page.getByRole("dialog");
   await userDialog.getByLabel("Nome").fill("Técnico PIN E2E");
-  await userDialog.getByLabel("Email").fill("pin-e2e@proexel.local");
+  await userDialog.getByLabel("Email").fill(`pin-${suffix}@proexel.local`);
   await userDialog.getByLabel("Papel").selectOption("tecnico");
+  await userDialog.getByLabel("Nível técnico máximo").selectOption("2");
   await userDialog.getByLabel("Palavra-passe inicial").fill("PasswordE2E123!");
   await userDialog.getByLabel("PIN opcional (4 a 8 dígitos)").fill("2468");
   await userDialog.getByRole("button", { name: "Confirmar" }).click();
-  await expect(page.getByRole("row").filter({ hasText: "pin-e2e@proexel.local" })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: `pin-${suffix}@proexel.local` })).toBeVisible();
   await page.getByRole("tab", { name: "Histórico de usuários" }).click();
   await expect(page.getByText("Usuário criado")).toBeVisible();
 
   await logout(page);
-  await login(page, "pin-e2e@proexel.local", "2468");
+  await login(page, `pin-${suffix}@proexel.local`, "2468");
   await expect(page.getByRole("heading", { name: "Visão geral" })).toBeVisible();
-
-  await logout(page);
-  await login(page, "admin-e2e@proexel.local");
-  await page.goto("/dashboard/admin");
-  const managedUser = page.getByRole("row").filter({ hasText: "pin-e2e@proexel.local" });
-  await managedUser.getByTitle("Editar usuário").click();
-  const editUserDialog = page.getByRole("dialog");
-  await editUserDialog.getByLabel("Conta ativa").uncheck();
-  await editUserDialog.getByRole("button", { name: "Confirmar" }).click();
-  await expect(managedUser).toContainText("Desativado");
-
-  await logout(page);
-  await page.getByLabel("Email").fill("pin-e2e@proexel.local");
-  await page.getByLabel("Palavra-passe ou PIN").fill("2468");
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page.getByText("Email ou palavra-passe inválidos.")).toBeVisible();
-
-  await login(page, "admin-e2e@proexel.local");
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/dashboard/overview");

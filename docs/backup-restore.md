@@ -1,7 +1,7 @@
-# PROEXEL backup and restore
+# PROEXEL backup and restore - CONCLUÍDO 100%
 
 The standalone deployment stores canonical metadata in one schema-versioned
-JSON file and photo/signature bytes in the attachment directory. Use cold
+JSON file and protected photo bytes in the attachment directory. Use cold
 backups: stop Rust and Next.js before copying either consistency set.
 
 ## Paths
@@ -48,7 +48,7 @@ mkdir -p "$BACKUP_DIR"
 cp -p "$STATE" "$BACKUP_DIR/proexel-state-v1.json"
 cp -Rp proexel/apps/service/target/runtime/attachments "$BACKUP_DIR/attachments"
 shasum -a 256 "$BACKUP_DIR/proexel-state-v1.json" > "$BACKUP_DIR/SHA256SUMS"
-jq -e '.schema_version == 1' "$BACKUP_DIR/proexel-state-v1.json"
+jq -e '.schema_version == 2' "$BACKUP_DIR/proexel-state-v1.json"
 ```
 
 `jq` is a validation convenience, not a runtime dependency. On Linux,
@@ -87,7 +87,7 @@ mv "${STATE}.restore" "$STATE"
 - The service starts without `storage_decode_failed`.
 - The health endpoint returns success.
 - `schema_version` is the expected value.
-- User, valve, maintenance, order, stock, supplier and audit counts are plausible.
+- User, category, machine, component, inspection, order, stock, supplier and audit counts are plausible.
 - A read-only UI smoke test succeeds for an authorized role.
 - A controlled write creates exactly one audit event and survives service
   restart.
@@ -100,7 +100,7 @@ mv "${STATE}.restore" "$STATE"
 - `processed_commands` must be retained; removing it can make old retries apply
   a business action twice.
 - State and attachments must share one consistency point. Orphaned files are
-  harmless but missing referenced files break photo/signature viewing.
+  harmless but missing referenced files break photo viewing.
 - User accounts and credential hashes are canonical state. Encrypt backups and
   restrict them as credential material. `PROEXEL_AUTH_USERS` is only an initial
   seed and must not overwrite restored accounts.

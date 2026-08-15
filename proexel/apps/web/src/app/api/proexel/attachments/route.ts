@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 
+import { resolveAttachment } from "@/lib/proexel/attachment-storage";
 import { getCurrentSession } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
 
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const runtime = "nodejs";
@@ -15,7 +16,15 @@ const TYPES = {
   "image/webp": { extension: "webp", magic: [0x52, 0x49, 0x46, 0x46] },
 } as const;
 
-type AttachmentKind = "valve-photos" | "signatures";
+type AttachmentKind = "machine-photos" | "item-photos" | "guide-photos" | "inspection-photos" | "replacement-photos";
+
+const KINDS: AttachmentKind[] = [
+  "machine-photos",
+  "item-photos",
+  "guide-photos",
+  "inspection-photos",
+  "replacement-photos",
+];
 
 export async function POST(request: Request) {
   const session = await getCurrentSession();
@@ -23,13 +32,13 @@ export async function POST(request: Request) {
   const form = await request.formData().catch(() => null);
   const file = form?.get("file");
   const kind = form?.get("kind");
-  if (!(file instanceof File) || (kind !== "valve-photos" && kind !== "signatures")) {
+  if (!(file instanceof File) || !KINDS.includes(kind as AttachmentKind)) {
     return NextResponse.json({ error: "invalid_attachment" }, { status: 400 });
   }
-  const permission = kind === "valve-photos" ? "valve.update_photo" : "maintenance.register";
+  const permission = kind === "inspection-photos" ? "inspection.execute" : "photo.manage_reference";
   if (!can(permission, session.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const spec = TYPES[file.type as keyof typeof TYPES];
-  const maxBytes = kind === "valve-photos" ? 5 * 1024 * 1024 : 1024 * 1024;
+  const maxBytes = 8 * 1024 * 1024;
   if (!spec || file.size === 0 || file.size > maxBytes) {
     return NextResponse.json({ error: "invalid_attachment" }, { status: 400 });
   }
@@ -50,7 +59,7 @@ export async function GET(request: Request) {
   const ref = new URL(request.url).searchParams.get("ref") ?? "";
   const kind = attachmentKind(ref);
   if (!kind) return NextResponse.json({ error: "invalid_attachment" }, { status: 400 });
-  const permission = kind === "valve-photos" ? "valve.read" : "maintenance.read";
+  const permission = kind === "inspection-photos" ? "inspection.read" : "machine.read";
   if (!can(permission, session.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   try {
     const bytes = await readFile(/* turbopackIgnore: true */ resolveAttachment(ref));
@@ -66,35 +75,11 @@ export async function GET(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
-  const session = await getCurrentSession();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const body = (await request.json().catch(() => null)) as { ref?: unknown } | null;
-  const ref = typeof body?.ref === "string" ? body.ref : "";
-  const kind = attachmentKind(ref);
-  if (!kind) return NextResponse.json({ error: "invalid_attachment" }, { status: 400 });
-  const permission = kind === "valve-photos" ? "valve.update_photo" : "maintenance.register";
-  if (!can(permission, session.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  await unlink(resolveAttachment(ref)).catch(() => undefined);
-  return NextResponse.json({ deleted: true });
-}
-
-function attachmentRoot() {
-  return path.resolve(
-    /* turbopackIgnore: true */
-    process.env.PROEXEL_ATTACHMENTS_DIR ?? path.join(process.cwd(), "../service/target/runtime/attachments"),
-  );
-}
-
-function resolveAttachment(ref: string) {
-  const root = attachmentRoot();
-  const target = path.resolve(root, ref);
-  if (!target.startsWith(`${root}${path.sep}`)) throw new Error("invalid_attachment_path");
-  return target;
-}
-
 function attachmentKind(ref: string): AttachmentKind | null {
-  const match = /^(valve-photos|signatures)\/[0-9a-f-]+\.(png|jpg|webp)$/.exec(ref);
+  const match =
+    /^(machine-photos|item-photos|guide-photos|inspection-photos|replacement-photos)\/[0-9a-f-]+\.(png|jpg|webp)$/.exec(
+      ref,
+    );
   return match ? (match[1] as AttachmentKind) : null;
 }
 

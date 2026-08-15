@@ -1,4 +1,4 @@
-# PROEXEL troubleshooting
+# PROEXEL troubleshooting - CONCLUÍDO 100%
 
 Start with the narrowest failing boundary: browser -> Next.js session -> Next.js
 API adapter -> AppCore transport -> PROEXEL application -> state file.
@@ -106,7 +106,7 @@ Find and stop the existing stack or set `PROEXEL_WEB_PORT` and an alternate
 deployment manifest. The E2E runner intentionally uses 3010/39410 and isolated
 state/build directories. Do not run two Rust writers against one state file.
 
-### Photo or signature returns 404
+### Protected photo returns 404
 
 - Confirm `PROEXEL_ATTACHMENTS_DIR` is the same absolute path used at upload.
 - Confirm the Next.js account can read files and traverse directories.

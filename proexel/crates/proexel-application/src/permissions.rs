@@ -11,13 +11,19 @@ pub enum Role {
 
 pub fn can(role: Role, permission: &str) -> bool {
     match permission {
-        "valve.read" => matches!(role, Role::Admin | Role::Chefe | Role::Tecnico),
-        "valve.create" => matches!(role, Role::Admin | Role::Chefe),
-        "valve.update_technical_fields" | "valve.update_photo" => matches!(role, Role::Admin),
-        "maintenance.register" => matches!(role, Role::Admin | Role::Chefe | Role::Tecnico),
-        "maintenance.read" => matches!(role, Role::Admin | Role::Chefe | Role::Tecnico),
+        "item_category.read" | "machine.read" => {
+            matches!(role, Role::Admin | Role::Chefe | Role::Tecnico)
+        }
+        "item_category.manage" => matches!(role, Role::Admin),
+        "machine.create" | "machine.update" | "machine_item.manage" => {
+            matches!(role, Role::Admin | Role::Chefe)
+        }
+        "photo.manage_reference" => matches!(role, Role::Admin | Role::Chefe),
+        "inspection.execute" => matches!(role, Role::Admin | Role::Chefe | Role::Tecnico),
+        "inspection.read" => matches!(role, Role::Admin | Role::Chefe | Role::Tecnico),
         "order.read" => matches!(role, Role::Admin | Role::Chefe | Role::Tecnico),
-        "order.create" | "order.change_status" | "order.delete" => {
+        "operator.read" => matches!(role, Role::Admin | Role::Chefe),
+        "order.create" | "order.manage" | "order.delete" => {
             matches!(role, Role::Admin | Role::Chefe)
         }
         "restock.create_suggestion" => matches!(role, Role::Tecnico),
@@ -39,8 +45,8 @@ mod tests {
     use super::{can, Role};
 
     #[test]
-    fn technician_can_register_maintenance_but_cannot_adjust_stock() {
-        assert!(can(Role::Tecnico, "maintenance.register"));
+    fn technician_can_execute_inspection_but_cannot_adjust_stock() {
+        assert!(can(Role::Tecnico, "inspection.execute"));
         assert!(!can(Role::Tecnico, "stock.adjust_quantity"));
     }
 

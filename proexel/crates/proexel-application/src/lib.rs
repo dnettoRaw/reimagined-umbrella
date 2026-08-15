@@ -1,4 +1,6 @@
+mod asset_commands;
 pub mod commands;
+mod legacy_state;
 pub mod permissions;
 pub mod state;
 

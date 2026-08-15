@@ -6,8 +6,12 @@ import type {
   AuditEvent,
   AuditListResult,
   CommandResult,
+  ItemCategory,
+  ItemInspection,
   ListResult,
-  MaintenanceRecord,
+  Machine,
+  MachineListResult,
+  OperatorSummary,
   OverviewResult,
   ReportResult,
   RestockRequest,
@@ -15,19 +19,27 @@ import type {
   StockItem,
   Supplier,
   UserAccount,
-  Valve,
-  ValveListResult,
 } from "./types";
 
 const COMMAND_PERMISSIONS: Record<string, string> = {
-  "proexel.valves.create": "valve.create",
-  "proexel.valves.update": "valve.update_technical_fields",
-  "proexel.valves.add_photo": "valve.update_photo",
-  "proexel.valves.delete_photo": "valve.update_photo",
-  "proexel.maintenance.register": "maintenance.register",
+  "proexel.item_categories.create": "item_category.manage",
+  "proexel.item_categories.update": "item_category.manage",
+  "proexel.machines.create": "machine.create",
+  "proexel.machines.update": "machine.update",
+  "proexel.machine_items.add": "machine_item.manage",
+  "proexel.machine_items.update": "machine_item.manage",
+  "proexel.machine_items.reorder": "machine_item.manage",
+  "proexel.machine_items.remove": "machine_item.manage",
+  "proexel.machine_items.replace": "machine_item.manage",
+  "proexel.photos.add": "photo.manage_reference",
+  "proexel.photos.delete": "photo.manage_reference",
   "proexel.orders.create": "order.create",
-  "proexel.orders.change_status": "order.change_status",
+  "proexel.orders.start": "inspection.execute",
+  "proexel.orders.assign_task": "order.manage",
   "proexel.orders.delete": "order.delete",
+  "proexel.orders.complete": "inspection.execute",
+  "proexel.inspections.start": "inspection.execute",
+  "proexel.inspections.complete": "inspection.execute",
   "proexel.purchasing.create_restock_request": "restock.create_suggestion",
   "proexel.purchasing.review_restock_request": "restock.approve_reject",
   "proexel.purchasing.delete_restock_request": "restock.delete",
@@ -43,15 +55,17 @@ const COMMAND_PERMISSIONS: Record<string, string> = {
 };
 
 const QUERY_PERMISSIONS: Record<string, string> = {
-  "proexel.valves.list": "valve.read",
-  "proexel.maintenance.list": "maintenance.read",
+  "proexel.item_categories.list": "item_category.read",
+  "proexel.machines.list": "machine.read",
   "proexel.orders.list": "order.read",
+  "proexel.inspections.list": "inspection.read",
   "proexel.purchasing.list_restock_requests": "restock.read",
   "proexel.stock.list": "stock.read",
   "proexel.suppliers.list": "supplier.read",
   "proexel.audit.list": "audit.read",
   "proexel.reports.get": "report.read",
   "proexel.admin.users.list": "admin.users.manage",
+  "proexel.operators.list": "operator.read",
 };
 
 const SERVICE_ERROR_KEYS: Record<string, TranslationKey> = {
@@ -59,10 +73,21 @@ const SERVICE_ERROR_KEYS: Record<string, TranslationKey> = {
   invalid_command_data: "service.invalidPayload",
   unknown_command: "service.unknownCommand",
   forbidden: "service.permissionDenied",
-  tag_already_exists: "service.tagExists",
-  valve_not_found: "service.valveNotFound",
+  category_not_found: "service.categoryNotFound",
+  category_inactive: "service.categoryInactive",
+  category_code_already_exists: "service.categoryCodeExists",
+  machine_not_found: "service.machineNotFound",
+  machine_code_already_exists: "service.machineCodeExists",
+  machine_item_not_found: "service.machineItemNotFound",
+  machine_item_code_already_exists: "service.machineItemCodeExists",
+  operator_repair_level_insufficient: "service.repairLevelInsufficient",
   order_not_found: "service.orderNotFound",
-  invalid_order_status_transition: "service.invalidOrderTransition",
+  order_tasks_pending: "service.orderTasksPending",
+  service_order_has_pending_tasks: "service.orderTasksPending",
+  inspection_not_found: "service.inspectionNotFound",
+  inspection_required_step_missing: "service.requiredStepMissing",
+  inspection_photo_required: "service.photoRequired",
+  inspection_measurement_unit_invalid: "service.measurementUnitInvalid",
   review_status_must_be_final: "service.reviewMustBeFinal",
   restock_request_not_found: "service.restockNotFound",
   restock_request_already_reviewed: "service.restockReviewed",
@@ -71,12 +96,11 @@ const SERVICE_ERROR_KEYS: Record<string, TranslationKey> = {
   stock_cannot_be_negative: "service.stockNegative",
   stock_quantity_overflow: "service.stockOverflow",
   supplier_not_found: "service.supplierNotFound",
-  completed_order_cannot_be_deleted: "service.completedOrderDelete",
   approved_restock_cannot_be_deleted: "service.approvedRestockDelete",
   stock_item_not_empty: "service.stockNotEmpty",
   photo_not_found: "service.photoNotFound",
   photo_already_exists: "service.photoExists",
-  signature_required: "service.signatureRequired",
+  photo_in_use_by_service_order: "service.photoInUse",
   supplier_email_invalid: "service.supplierEmailInvalid",
   supplier_website_invalid: "service.supplierWebsiteInvalid",
   user_not_found: "service.userNotFound",
@@ -89,12 +113,13 @@ const SERVICE_ERROR_KEYS: Record<string, TranslationKey> = {
 };
 
 const EMPTY_OVERVIEW: OverviewResult = {
-  schema_version: 1,
+  schema_version: 2,
   source: "unavailable",
-  valves: { total: 0, ok: 0, warning: 0, critical: 0 },
-  orders: { open: 0, in_progress: 0, completed: 0 },
+  machines: { total: 0, by_status: {} },
+  machine_items: { total: 0, by_status: {} },
+  orders: { pending: 0, in_progress: 0, completed: 0, cancelled: 0 },
   stock: { low: 0, total: 0 },
-  recent_maintenance: [],
+  recent_inspections: [],
   upcoming_orders: [],
 };
 
@@ -151,7 +176,7 @@ async function query<T>(capability: string, fallback: T, payload: Record<string,
 }
 
 function emptyList<T>(): ListResult<T> {
-  return { items: [], schema_version: 1, source: "unavailable" };
+  return { items: [], schema_version: 2, source: "unavailable", total: 0 };
 }
 
 export async function executeCommand(capability: string, data: Record<string, unknown>): Promise<CommandResult> {
@@ -175,37 +200,48 @@ export async function executeCommand(capability: string, data: Record<string, un
       command_id: commandId,
       idempotency_key: commandId,
       payload: JSON.stringify({
-        actor: {
-          id: session.sub,
-          name: session.name,
-          role: session.role,
-        },
+        actor: { id: session.sub, name: session.name, role: session.role },
         data,
       }),
     }),
   });
   const body = (await response.json().catch(() => ({}))) as CommandResult;
   if (!response.ok || !body.accepted) {
-    const messageKey = body.message ? SERVICE_ERROR_KEYS[body.message.split(":", 1)[0]] : undefined;
+    const code = body.message?.split(":", 1)[0];
+    const messageKey = code ? SERVICE_ERROR_KEYS[code] : undefined;
     throw new ProexelServiceError(messageKey ? t(messageKey) : t("command.rejected"), response.status || 400);
   }
-  return body;
+  const prefix = RESOURCE_PREFIXES[capability];
+  return prefix ? { ...body, resource_id: `${prefix}${commandId}` } : body;
 }
+
+const RESOURCE_PREFIXES: Record<string, string> = {
+  "proexel.item_categories.create": "category-",
+  "proexel.machines.create": "machine-",
+  "proexel.machine_items.add": "machine-item-",
+  "proexel.photos.add": "photo-",
+  "proexel.orders.create": "order-",
+  "proexel.inspections.start": "inspection-",
+};
 
 export async function getOverview(): Promise<OverviewResult> {
   const result = await query("proexel.overview.get", EMPTY_OVERVIEW);
   return { ...result, source: result === EMPTY_OVERVIEW ? "unavailable" : "appcore" };
 }
 
-export async function listValves(payload: Record<string, unknown> = {}): Promise<ValveListResult> {
-  const fallback: ValveListResult = {
-    ...emptyList<Valve>(),
+export async function listItemCategories(payload: Record<string, unknown> = {}): Promise<ListResult<ItemCategory>> {
+  return listQuery<ItemCategory>("proexel.item_categories.list", payload);
+}
+
+export async function listMachines(payload: Record<string, unknown> = {}): Promise<MachineListResult> {
+  const fallback: MachineListResult = {
+    ...emptyList<Machine>(),
     total: 0,
     page: 1,
     page_size: 25,
-    facets: { zones: [], valve_types: [] },
+    facets: { zones: [] },
   };
-  const result = await query("proexel.valves.list", fallback, payload);
+  const result = await query("proexel.machines.list", fallback, payload);
   return { ...result, source: result === fallback ? "unavailable" : "appcore" };
 }
 
@@ -215,11 +251,14 @@ async function listQuery<T>(capability: string, payload: Record<string, unknown>
   return { ...result, source: result === fallback ? "unavailable" : "appcore" };
 }
 
-export const listMaintenance = () => listQuery<MaintenanceRecord>("proexel.maintenance.list");
-export const listServiceOrders = () => listQuery<ServiceOrder>("proexel.orders.list");
+export const listServiceOrders = (payload: Record<string, unknown> = {}) =>
+  listQuery<ServiceOrder>("proexel.orders.list", payload);
+export const listInspections = (payload: Record<string, unknown> = {}) =>
+  listQuery<ItemInspection>("proexel.inspections.list", payload);
 export const listRestockRequests = () => listQuery<RestockRequest>("proexel.purchasing.list_restock_requests");
 export const listStock = () => listQuery<StockItem>("proexel.stock.list");
 export const listSuppliers = () => listQuery<Supplier>("proexel.suppliers.list");
+
 export async function listAudit(payload: Record<string, unknown> = {}): Promise<AuditListResult> {
   const fallback: AuditListResult = {
     ...emptyList<AuditEvent>(),
@@ -235,18 +274,24 @@ export async function listAudit(payload: Record<string, unknown> = {}): Promise<
 }
 
 export async function listUsers(): Promise<ListResult<UserAccount>> {
-  return query("proexel.admin.users.list", emptyList<UserAccount>());
+  const fallback = emptyList<UserAccount>();
+  const result = await query("proexel.admin.users.list", fallback);
+  return { ...result, source: result === fallback ? "unavailable" : "appcore" };
+}
+
+export async function listOperators(): Promise<ListResult<OperatorSummary>> {
+  return listQuery<OperatorSummary>("proexel.operators.list");
 }
 
 export async function getReports(): Promise<ReportResult> {
   const fallback: ReportResult = {
-    schema_version: 1,
+    schema_version: 2,
     source: "unavailable",
     generated_at_ms: 0,
     overview: EMPTY_OVERVIEW,
     by_zone: [],
-    critical_valves: [],
-    recent_maintenance: [],
+    critical_items: [],
+    recent_inspections: [],
   };
   const result = await query("proexel.reports.get", fallback);
   return { ...result, source: result === fallback ? "unavailable" : "appcore" };

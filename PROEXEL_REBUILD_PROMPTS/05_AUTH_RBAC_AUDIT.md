@@ -22,8 +22,9 @@ Há views diferentes por papel e ações adicionais dentro das views. Não deduz
 - UI deve refletir permissões para UX, mas backend é autoridade.
 
 Crie permissions granulares, por exemplo:
-- valve.read / valve.create / valve.update
-- maintenance.read / maintenance.execute
+- item_category.read / item_category.manage
+- machine.read / machine.create / machine.update / machine_item.manage
+- inspection.read / inspection.execute
 - order.read / order.create / order.status.change / order.delete
 - stock.read / stock.adjust
 - restock.create / restock.review / restock.delete

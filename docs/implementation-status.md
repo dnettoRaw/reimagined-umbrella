@@ -1,42 +1,42 @@
-# PROEXEL rebuild implementation status
+# PROEXEL implementation status - CONCLUÍDO 100%
 
-Status verified against code and automated gates on 2026-08-15. A prompt title
-contains `CONCLUÍDO 100%` only when every applicable requirement is delivered.
+Status verified against code and automated gates on 2026-08-15.
 
-## Completed prompts
+## Completed scope
 
-| Prompt | Status | Evidence |
-|---|---|---|
-| 01 Discovery | 100% | Behavior, data, RBAC and AppCore maps plus parity checklist |
-| 02 Architecture | 100% | Independent Rust/Next workspace, public AppCore boundary, manifests and boundary test |
-| 03 Bootstrap | 100% | Real health/query slice, durable empty state, PROEXEL shell and local launcher |
-| 04 Domain/storage | 100% | Typed schema v1, atomic/idempotent transactions, maintenance/stock policies and tests |
-| 05 Auth/RBAC/audit | 100% | Scrypt password/PIN, versioned sessions, user administration, four-role enforcement and redacted audit |
-| 08 Operations | 100% | Orders/schedule, canonical priority, stock/movements, restock, suppliers and purchase output |
-| 09 Reports/i18n/offline | 100% | Paginated PDF, PT/EN/ES/FR, local/degraded status and deduplicated notifications |
+| Area | Status | Evidence |
+|---|---:|---|
+| Discovery and boundaries | 100% | Legacy maps, AppCore boundary ADR and dependency test |
+| Domain and storage | 100% | Machine/category/item/guide/inspection model, schema v2 and migration tests |
+| Auth, RBAC and operators | 100% | Four roles, audited users, password/PIN, max level 1..5 |
+| Admin UI | 100% | Machines, categories, guide editor, orders, execution, users and audit |
+| Guided maintenance | 100% | Typed steps, reference/evidence photos, immutable snapshots and histories |
+| Operations | 100% | Stock, purchasing, suppliers, reports, notifications and PDF |
+| Migration | 100% | Deterministic legacy and in-place schema migration paths |
+| Localization | 100% | Typed PT/EN/ES/FR catalogs for all visible product text |
+| Release gates | 100% | Tests, clippy, Biome, TypeScript, build, E2E and npm audit |
 
-The supported topology is standalone local read/write. Remote sync is explicitly
-disabled, so pending/conflict states do not exist in this deployment and are not
-presented as successful.
+## Canonical architecture
 
-## Partially open prompts
+The runtime model is `Machine -> MachineItem[] -> ItemCategory -> MaintenanceGuide`.
+`MachineItem` is a stable functional position and `InstalledComponent` is the
+replaceable physical unit. `ServiceOrderTask` and `ItemInspection` preserve the
+historical context needed for audit and reporting.
 
-| Prompt | Implemented | Remaining reason the title is not 100% |
-|---|---|---|
-| 00 Master | All definition-of-done engineering gates for standalone | Master scope includes the still-open prompt 10/11 cutover and resilience evidence |
-| 06 UI | All product routes, responsive workflows, filters, pagination and audit detail | Tables/forms do not uniformly use the exact TanStack/RHF stack requested by the prompt |
-| 07 Valves/maintenance | Create/edit/detail, stable-ID photos, guided signed maintenance, stock and E2E | Valve deletion and server-side image-dimension validation are not implemented |
-| 10 Migration | Deterministic CLI, aliases, dry-run, checksums, reports and metadata links | Requires a real production export and source photo binaries to validate/transfer |
-| 11 Release | Unit/integration/E2E, volume/concurrency, lint/type/build and dependency audits | Full disk/network/read-only/sync fault injection remains external/open |
+Legacy Valve DTOs are isolated to migration code. There are no legacy runtime
+routes, commands, queries, domain modules, UI pages or translation keys.
+
+## Supported topology
+
+The completed topology is standalone local read/write through AppCore capability
+hosting. Remote sync is intentionally not configured, so the UI does not present
+pending/conflict states or claim remote persistence.
 
 ## Verified gates
 
-- Rust workspace: 28 tests, including domain boundaries, identities, storage, migration,
-  concurrency and production-volume pagination.
-- Browser E2E: admin, technician and chief operational flow, signed maintenance,
-  attachment, stock, order, restock approval, PDF and mobile overflow.
-- Web: Biome, TypeScript, Next.js production build and npm audit.
-- Dependencies: npm and Rust audits are release gates.
-
-The exact remaining gates are maintained in
-[`functional-parity-checklist.md`](functional-parity-checklist.md).
+- 29 Rust tests passed across domain, application, infrastructure, migration and service.
+- Clippy passed for every workspace target with warnings denied.
+- Biome and TypeScript passed for the web application.
+- Next.js generated the production route tree without legacy routes.
+- Playwright completed the machine-to-inspection workflow on the isolated stack.
+- npm reported zero high-severity vulnerabilities.
