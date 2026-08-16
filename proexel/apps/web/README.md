@@ -26,6 +26,30 @@ npm install
 npm run dev
 ```
 
+## Demo mode
+
+Demo mode renders the same routes and components as the connected application,
+but replaces authentication and AppCore calls with deterministic browser-local
+fixtures. Each visitor receives 10 machines, 40 installed components and
+representative operational data. Mutations are persisted in that browser's
+`localStorage`; password and PIN values are discarded.
+
+```bash
+npm run build:demo
+PROEXEL_DEMO=1 NEXT_PUBLIC_PROEXEL_DEMO=1 npm start -- --port 3030
+```
+
+The access screen uses `proexel-demo` by default. Override it in any environment
+with the server-only `PROEXEL_DEMO_PASSWORD` variable. The password is exchanged
+for an `HttpOnly` access cookie and is never exposed through a public environment
+variable. After validation, the visitor chooses an administrator, manager,
+purchasing or technician profile to inspect the corresponding permissions.
+
+For Vercel, set the project Root Directory to `proexel/apps/web`. The local
+`vercel.json` installs dependencies and runs the demo build without AppCore,
+database or submodule access. Add `PROEXEL_DEMO_PASSWORD` in Project Settings →
+Environment Variables to replace the default password, then deploy normally.
+
 ## Responsibilities
 
 - Authenticate canonical active users with server-side scrypt password/PIN verification.

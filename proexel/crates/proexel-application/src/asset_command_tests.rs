@@ -108,6 +108,65 @@ fn order_all_selection_is_snapshotted_and_does_not_expand() {
 }
 
 #[test]
+fn component_specific_guide_is_wrapped_and_snapshotted() {
+    let mut state = setup();
+    add_item(&mut state, "a", Some(2));
+    let update = command(
+        "admin",
+        Role::Admin,
+        serde_json::json!({
+            "id":"machine-item-a",
+            "category_id":"category-cat",
+            "name":"Motor a",
+            "code":"a",
+            "complexity_level":2,
+            "status":"ok",
+            "custom_field_values":{"power":4.2},
+            "maintenance_guide_override":{"version":1,"steps":[{
+                "id":"torque-check","title":"Torque check","description":null,
+                "instructions":"Check the mounting torque.","step_type":"confirmation",
+                "required":true,"reference_photo_ids":[],"safety_warning":null,
+                "expected_value":null,"options":[],"order":0
+            }]}
+        }),
+    );
+    state
+        .execute(commands::UPDATE_MACHINE_ITEM, "u", "i-u", 4, &update)
+        .unwrap();
+    let order = command(
+        "admin",
+        Role::Admin,
+        serde_json::json!({"machine_id":"machine-m","all_items":true,"description":"Inspect","priority":"normal"}),
+    );
+    state
+        .execute(
+            commands::CREATE_SERVICE_ORDER,
+            "o-specific",
+            "i-o-specific",
+            5,
+            &order,
+        )
+        .unwrap();
+    let step_ids = state.service_orders[0].tasks[0]
+        .item_snapshot
+        .category
+        .maintenance_guide
+        .steps
+        .iter()
+        .map(|step| step.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        step_ids,
+        vec![
+            "proexel-safety-lockout",
+            "proexel-visual-before",
+            "torque-check",
+            "proexel-work-after"
+        ]
+    );
+}
+
+#[test]
 fn guide_photo_is_linked_snapshotted_and_protected_from_deletion() {
     let mut state = setup();
     add_item(&mut state, "a", Some(2));
@@ -236,10 +295,30 @@ fn guided_execution_requires_results_and_updates_derived_status() {
         .execute(commands::COMPLETE_INSPECTION, "ci", "i-ci", 7, &invalid)
         .unwrap_err()
         .starts_with("inspection_step_required"));
+    for (id, purpose) in [("before", "before"), ("after", "after")] {
+        let photo = command(
+            "tech-2",
+            Role::Tecnico,
+            serde_json::json!({
+                "owner_type":"inspection",
+                "owner_id":"inspection-in",
+                "purpose":purpose,
+                "blob_ref":format!("inspection-photos/{id}.webp")
+            }),
+        );
+        state
+            .execute(commands::ADD_PHOTO, id, &format!("i-{id}"), 8, &photo)
+            .unwrap();
+    }
     let complete = command(
         "tech-2",
         Role::Tecnico,
-        serde_json::json!({"id":"inspection-in","status_after":"ok","step_results":[{"step_id":"confirm","value":true,"unit":null,"photo_ids":[]}]}),
+        serde_json::json!({"id":"inspection-in","status_after":"ok","step_results":[
+            {"step_id":"proexel-safety-lockout","value":true,"unit":null,"photo_ids":[]},
+            {"step_id":"proexel-visual-before","value":true,"unit":null,"photo_ids":["photo-before"]},
+            {"step_id":"confirm","value":true,"unit":null,"photo_ids":[]},
+            {"step_id":"proexel-work-after","value":true,"unit":null,"photo_ids":["photo-after"]}
+        ]}),
     );
     state
         .execute(commands::COMPLETE_INSPECTION, "ci2", "i-ci2", 8, &complete)

@@ -81,6 +81,7 @@ impl ApplicationState {
                 code: machine.code,
                 name: machine.name,
                 zone: machine.zone,
+                location: machine.location,
             },
             description: input.description.trim().to_string(),
             priority: input.priority,

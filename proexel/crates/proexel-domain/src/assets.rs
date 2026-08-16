@@ -229,9 +229,10 @@ pub struct MachineItem {
     pub complexity_level: ComplexityLevel,
     pub status: OperationalStatus,
     pub position: u32,
-    pub location_description: Option<String>,
     #[serde(default)]
     pub custom_field_values: BTreeMap<String, Value>,
+    #[serde(default)]
+    pub maintenance_guide_override: Option<MaintenanceGuide>,
     pub installed_component: Option<InstalledComponent>,
     pub replacement_specification: ReplacementSpecification,
     pub notes: Option<String>,

@@ -35,6 +35,8 @@ pub struct MachineSnapshot {
     pub code: String,
     pub name: String,
     pub zone: String,
+    #[serde(default)]
+    pub location: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -56,7 +58,6 @@ pub struct MachineItemSnapshot {
     pub name: String,
     pub code: String,
     pub complexity_level: ComplexityLevel,
-    pub location_description: Option<String>,
     pub installed_component: Option<InstalledComponent>,
 }
 

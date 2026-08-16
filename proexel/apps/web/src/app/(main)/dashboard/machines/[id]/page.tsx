@@ -182,7 +182,6 @@ function Component({
           </TabsTrigger>
         </TabsList>
         <TabsContent value="details" className="grid gap-3 md:grid-cols-3">
-          <Datum label={t("common.location")} value={item.location_description} />
           <Datum label={t("common.manufacturer")} value={item.installed_component?.manufacturer} />
           <Datum label={t("common.model")} value={item.installed_component?.model} />
           <Datum label={t("common.partNumber")} value={item.installed_component?.part_number} />

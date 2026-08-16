@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:demo": "PROEXEL_DEMO=1 NEXT_PUBLIC_PROEXEL_DEMO=1 next build",
     "start": "next start",
     "lint": "biome lint",
     "format": "biome format --write",

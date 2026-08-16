@@ -25,7 +25,6 @@ pub(crate) fn item_snapshot(item: &MachineItem, category: &ItemCategory) -> Mach
         name: item.name.clone(),
         code: item.code.clone(),
         complexity_level: item.complexity_level,
-        location_description: item.location_description.clone(),
         installed_component: item.installed_component.clone(),
     }
 }
@@ -36,6 +35,7 @@ pub(crate) fn machine_snapshot(machine: &Machine) -> MachineSnapshot {
         code: machine.code.clone(),
         name: machine.name.clone(),
         zone: machine.zone.clone(),
+        location: machine.location.clone(),
     }
 }
 

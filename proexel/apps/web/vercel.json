@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build:demo",
+  "env": {
+    "PROEXEL_DEMO": "1",
+    "NEXT_PUBLIC_PROEXEL_DEMO": "1"
+  }
+}

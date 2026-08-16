@@ -4,6 +4,7 @@ import {
   Building2,
   Calendar,
   ClipboardCheck,
+  Component,
   Factory,
   History,
   LayoutDashboard,
@@ -65,6 +66,12 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/categories",
         icon: Tags,
         roles: ["admin"],
+      },
+      {
+        title: "nav.components",
+        url: "/dashboard/components",
+        icon: Component,
+        roles: ["admin", "chefe", "tecnico"],
       },
       {
         title: "nav.execution",

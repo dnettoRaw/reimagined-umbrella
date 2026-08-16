@@ -32,6 +32,11 @@ ServiceOrder
 - OS para um, alguns ou todos os componentes com snapshots imutáveis.
 - Execução passo a passo, resultados estruturados, findings e evidências.
 - Fotos de máquina, componente, guia, inspeção e substituição.
+- Atalho `Minhas ordens` em modal com progresso e acesso direto à execução.
+- Registro global de componentes com busca, edição individual e acesso à máquina.
+- Tutorial específico opcional por componente, herdando a categoria por padrão.
+- OS sempre composta por bloqueio de segurança, foto inicial, etapas técnicas e foto final.
+- Snapshots de OS congelam o tutorial específico e as etapas operacionais obrigatórias.
 - Usuários, papéis, senha, PIN, ativação, nível técnico e auditoria.
 - Estoque, compras, fornecedores, relatórios, PDF e notificações preservados.
 - PT, EN, ES e FR obrigatórios com paridade tipada.

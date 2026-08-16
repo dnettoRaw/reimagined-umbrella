@@ -1,27 +1,28 @@
-import { Check, Plus, ShoppingCart, Trash2, X } from "lucide-react";
+import { Check, ShoppingCart, Trash2, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getI18n } from "@/lib/i18n/server";
 import { requireSession } from "@/lib/proexel/auth-server";
 import { can } from "@/lib/proexel/permissions";
-import { listRestockRequests, listStock } from "@/lib/proexel/service";
+import { listMachines, listRestockRequests, listStock } from "@/lib/proexel/service";
 
 import { CommandButton } from "../_components/command-button";
-import { CommandDialog } from "../_components/command-dialog";
 import { PageHeader } from "../_components/page-header";
 import { ProexelEmptyState } from "../_components/proexel-empty-state";
 import { PurchasePlan } from "./purchase-plan";
+import { type PurchaseComponentOption, PurchaseRequestDialog } from "./purchase-request-dialog";
 
 export const dynamic = "force-dynamic";
 
 export default async function PurchasingPage() {
-  const [{ role }, requests, stock, { t }] = await Promise.all([
-    requireSession(),
+  const { role } = await requireSession();
+  const canRequest = can("restock.create_suggestion", role);
+  const [requests, stock, machines, { t }] = await Promise.all([
     listRestockRequests(),
     listStock(),
+    canRequest ? listMachines({ page: 1, page_size: 500 }) : Promise.resolve({ items: [] }),
     getI18n(),
   ]);
   return (
@@ -29,25 +30,7 @@ export default async function PurchasingPage() {
       <PageHeader
         title={t("purchasing.title")}
         description={t("purchasing.description")}
-        action={
-          can("restock.create_suggestion", role) ? (
-            <CommandDialog
-              trigger={
-                <Button>
-                  <Plus />
-                  {t("purchasing.request")}
-                </Button>
-              }
-              title={t("purchasing.request")}
-              description={t("purchasing.requestDescription")}
-              endpoint="/api/proexel/purchasing"
-              fields={[
-                { name: "reference", label: t("stock.reference"), required: true },
-                { name: "reason", label: t("stock.reason"), type: "textarea", required: true },
-              ]}
-            />
-          ) : null
-        }
+        action={canRequest ? <PurchaseRequestDialog components={purchaseComponents(machines.items)} /> : null}
       />
       <Card>
         <CardHeader>
@@ -141,6 +124,26 @@ export default async function PurchasingPage() {
       {can("stock.read", role) ? <PurchasePlan stock={stock.items} requests={requests.items} /> : null}
     </div>
   );
+}
+
+function purchaseComponents(machines: Awaited<ReturnType<typeof listMachines>>["items"]): PurchaseComponentOption[] {
+  return machines
+    .flatMap((machine) =>
+      machine.items
+        .filter((item) => item.active)
+        .map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          machine: `${machine.code} · ${machine.name}`,
+          reference:
+            item.replacement_specification.supplier_reference ||
+            item.replacement_specification.part_number ||
+            item.installed_component?.part_number ||
+            item.code,
+        })),
+    )
+    .toSorted((left, right) => left.name.localeCompare(right.name));
 }
 
 function RequestStatus({

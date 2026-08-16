@@ -1,6 +1,21 @@
 import type { TranslationKey } from "../i18n/messages";
 import { getI18n } from "../i18n/server";
 import { getCurrentSession } from "./auth-server";
+import {
+  getDemoOverview,
+  getDemoReports,
+  isDemoMode,
+  listDemoAudit,
+  listDemoCategories,
+  listDemoInspections,
+  listDemoMachines,
+  listDemoOperators,
+  listDemoOrders,
+  listDemoRestockRequests,
+  listDemoStock,
+  listDemoSuppliers,
+  listDemoUsers,
+} from "./demo-service";
 import { can } from "./permissions";
 import type {
   AuditEvent,
@@ -180,6 +195,11 @@ function emptyList<T>(): ListResult<T> {
 }
 
 export async function executeCommand(capability: string, data: Record<string, unknown>): Promise<CommandResult> {
+  if (isDemoMode()) {
+    const commandId = crypto.randomUUID();
+    const prefix = RESOURCE_PREFIXES[capability];
+    return { accepted: true, message: "demo", resource_id: prefix ? `${prefix}demo-${commandId}` : undefined };
+  }
   const { t } = await getI18n();
   const session = await getCurrentSession();
   if (!session) throw new ProexelServiceError(t("service.invalidSession"), 401);
@@ -225,15 +245,18 @@ const RESOURCE_PREFIXES: Record<string, string> = {
 };
 
 export async function getOverview(): Promise<OverviewResult> {
+  if (isDemoMode()) return getDemoOverview();
   const result = await query("proexel.overview.get", EMPTY_OVERVIEW);
   return { ...result, source: result === EMPTY_OVERVIEW ? "unavailable" : "appcore" };
 }
 
 export async function listItemCategories(payload: Record<string, unknown> = {}): Promise<ListResult<ItemCategory>> {
+  if (isDemoMode()) return listDemoCategories(payload);
   return listQuery<ItemCategory>("proexel.item_categories.list", payload);
 }
 
 export async function listMachines(payload: Record<string, unknown> = {}): Promise<MachineListResult> {
+  if (isDemoMode()) return listDemoMachines(payload);
   const fallback: MachineListResult = {
     ...emptyList<Machine>(),
     total: 0,
@@ -251,15 +274,26 @@ async function listQuery<T>(capability: string, payload: Record<string, unknown>
   return { ...result, source: result === fallback ? "unavailable" : "appcore" };
 }
 
-export const listServiceOrders = (payload: Record<string, unknown> = {}) =>
-  listQuery<ServiceOrder>("proexel.orders.list", payload);
-export const listInspections = (payload: Record<string, unknown> = {}) =>
-  listQuery<ItemInspection>("proexel.inspections.list", payload);
-export const listRestockRequests = () => listQuery<RestockRequest>("proexel.purchasing.list_restock_requests");
-export const listStock = () => listQuery<StockItem>("proexel.stock.list");
-export const listSuppliers = () => listQuery<Supplier>("proexel.suppliers.list");
+export function listServiceOrders(payload: Record<string, unknown> = {}) {
+  return isDemoMode() ? listDemoOrders(payload) : listQuery<ServiceOrder>("proexel.orders.list", payload);
+}
+export function listInspections(payload: Record<string, unknown> = {}) {
+  return isDemoMode() ? listDemoInspections(payload) : listQuery<ItemInspection>("proexel.inspections.list", payload);
+}
+export function listRestockRequests() {
+  return isDemoMode()
+    ? listDemoRestockRequests()
+    : listQuery<RestockRequest>("proexel.purchasing.list_restock_requests");
+}
+export function listStock() {
+  return isDemoMode() ? listDemoStock() : listQuery<StockItem>("proexel.stock.list");
+}
+export function listSuppliers() {
+  return isDemoMode() ? listDemoSuppliers() : listQuery<Supplier>("proexel.suppliers.list");
+}
 
 export async function listAudit(payload: Record<string, unknown> = {}): Promise<AuditListResult> {
+  if (isDemoMode()) return listDemoAudit(payload);
   const fallback: AuditListResult = {
     ...emptyList<AuditEvent>(),
     total: 0,
@@ -274,16 +308,19 @@ export async function listAudit(payload: Record<string, unknown> = {}): Promise<
 }
 
 export async function listUsers(): Promise<ListResult<UserAccount>> {
+  if (isDemoMode()) return listDemoUsers();
   const fallback = emptyList<UserAccount>();
   const result = await query("proexel.admin.users.list", fallback);
   return { ...result, source: result === fallback ? "unavailable" : "appcore" };
 }
 
 export async function listOperators(): Promise<ListResult<OperatorSummary>> {
+  if (isDemoMode()) return listDemoOperators();
   return listQuery<OperatorSummary>("proexel.operators.list");
 }
 
 export async function getReports(): Promise<ReportResult> {
+  if (isDemoMode()) return getDemoReports();
   const fallback: ReportResult = {
     schema_version: 2,
     source: "unavailable",
@@ -298,6 +335,7 @@ export async function getReports(): Promise<ReportResult> {
 }
 
 export async function getRuntimeStatus() {
+  if (isDemoMode()) return { configured: true, healthy: true, url: "localStorage://proexel-demo" };
   const url = process.env.PROEXEL_SERVICE_URL;
   if (!url) return { configured: false, healthy: false, url: null as string | null };
   try {

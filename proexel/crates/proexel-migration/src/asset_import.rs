@@ -151,7 +151,8 @@ pub(crate) fn import_machine_items(
             .machine_items
             .iter()
             .filter(|item| item.machine_id == machine_id)
-            .count() as u32;
+            .count() as u32
+            + 1;
         let mut custom_field_values = BTreeMap::new();
         insert_clean(&mut custom_field_values, "seat", &old.seat);
         insert_clean(&mut custom_field_values, "dn", &old.dn);
@@ -204,8 +205,8 @@ pub(crate) fn import_machine_items(
             complexity_level: ComplexityLevel::INTERMEDIATE,
             status: OperationalStatus::Unknown,
             position,
-            location_description: None,
             custom_field_values,
+            maintenance_guide_override: None,
             installed_component,
             replacement_specification,
             notes: None,

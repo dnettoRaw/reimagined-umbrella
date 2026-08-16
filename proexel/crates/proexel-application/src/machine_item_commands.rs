@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use proexel_domain::{
     derive_machine_status, normalize_identifier, ComplexityLevel, InstalledComponent, MachineItem,
-    MachineItemReplacement, OperationalStatus, ReplacementSpecification, ServiceOrderStatus,
-    ServiceOrderTaskStatus,
+    MachineItemReplacement, MaintenanceGuide, OperationalStatus, ReplacementSpecification,
+    ServiceOrderStatus, ServiceOrderTaskStatus,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -17,7 +17,9 @@ use crate::{
 };
 
 use crate::asset_audit::SupplementalAudit;
-use crate::asset_validation::validate_custom_values;
+use crate::asset_validation::{
+    normalized_guide, validate_category_definition, validate_custom_values,
+};
 
 impl ApplicationState {
     pub(crate) fn add_machine_item(
@@ -50,6 +52,8 @@ impl ApplicationState {
             return Err("machine_item_code_already_exists".to_string());
         }
         validate_custom_values(category, &input.custom_field_values)?;
+        let maintenance_guide_override =
+            normalize_guide_override(input.maintenance_guide_override, None)?;
         let complexity = input
             .complexity_level
             .unwrap_or(category.default_complexity_level);
@@ -72,8 +76,8 @@ impl ApplicationState {
             complexity_level: complexity,
             status: input.status.unwrap_or_default(),
             position,
-            location_description: clean_optional(input.location_description),
             custom_field_values: input.custom_field_values,
+            maintenance_guide_override,
             installed_component: input
                 .installed_component
                 .map(|component| component.into_installed(format!("installation-{command_id}"))),
@@ -131,6 +135,13 @@ impl ApplicationState {
             return Err("machine_item_code_already_exists".to_string());
         }
         validate_custom_values(category, &input.item.custom_field_values)?;
+        let previous_guide = self.machine_items[item_index]
+            .maintenance_guide_override
+            .clone();
+        let maintenance_guide_override = normalize_guide_override(
+            input.item.maintenance_guide_override,
+            previous_guide.as_ref(),
+        )?;
         let before = json_string(&self.machine_items[item_index]);
         let previous_status = self.machine_items[item_index].status;
         let item = &mut self.machine_items[item_index];
@@ -140,8 +151,8 @@ impl ApplicationState {
         item.code_normalized = code;
         item.complexity_level = input.item.complexity_level;
         item.status = input.item.status;
-        item.location_description = clean_optional(input.item.location_description);
         item.custom_field_values = input.item.custom_field_values;
+        item.maintenance_guide_override = maintenance_guide_override.clone();
         item.replacement_specification = input.item.replacement_specification;
         item.notes = clean_optional(input.item.notes);
         item.updated_at_ms = now;
@@ -158,6 +169,20 @@ impl ApplicationState {
                     before: json_string(&previous_status),
                     after: json_string(&status_after),
                     description: "Machine item status changed",
+                },
+            );
+        }
+        if previous_guide != maintenance_guide_override {
+            self.push_supplemental_audit(
+                payload,
+                now,
+                SupplementalAudit {
+                    operation: "maintenance_guide.updated",
+                    aggregate: "machine_item",
+                    aggregate_id: &input.id,
+                    before: json_string(&previous_guide),
+                    after: json_string(&maintenance_guide_override),
+                    description: "Machine item maintenance guide updated",
                 },
             );
         }
@@ -351,9 +376,10 @@ struct MachineItemInput {
     code: String,
     complexity_level: Option<ComplexityLevel>,
     status: Option<OperationalStatus>,
-    location_description: Option<String>,
     #[serde(default)]
     custom_field_values: BTreeMap<String, Value>,
+    #[serde(default)]
+    maintenance_guide_override: Option<MaintenanceGuide>,
     installed_component: Option<InstalledComponentInput>,
     replacement_specification: Option<ReplacementSpecification>,
     notes: Option<String>,
@@ -366,9 +392,10 @@ struct UpdateMachineItemData {
     code: String,
     complexity_level: ComplexityLevel,
     status: OperationalStatus,
-    location_description: Option<String>,
     #[serde(default)]
     custom_field_values: BTreeMap<String, Value>,
+    #[serde(default)]
+    maintenance_guide_override: Option<MaintenanceGuide>,
     #[serde(default)]
     replacement_specification: ReplacementSpecification,
     notes: Option<String>,
@@ -397,4 +424,22 @@ struct ReplaceMachineItem {
     id: String,
     reason: String,
     installed_component: InstalledComponentInput,
+}
+
+fn normalize_guide_override(
+    guide: Option<MaintenanceGuide>,
+    previous: Option<&MaintenanceGuide>,
+) -> Result<Option<MaintenanceGuide>, String> {
+    let Some(mut guide) = guide else {
+        return Ok(None);
+    };
+    validate_category_definition(&[], &guide)?;
+    guide.version = previous.map_or(1, |current| {
+        if current.steps == guide.steps {
+            current.version
+        } else {
+            current.version.saturating_add(1)
+        }
+    });
+    Ok(Some(normalized_guide(guide)))
 }

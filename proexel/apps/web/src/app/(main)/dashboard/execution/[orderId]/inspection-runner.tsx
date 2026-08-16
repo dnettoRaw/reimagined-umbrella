@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -14,8 +14,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useI18n } from "@/lib/i18n/provider";
+import { AFTER_PHOTO_STEP_ID, BEFORE_PHOTO_STEP_ID, SAFETY_STEP_ID } from "@/lib/proexel/maintenance-guide";
 import type {
   InspectionStepResult,
   ItemInspection,
@@ -49,6 +51,12 @@ export function InspectionRunner({
   const inspection = inspections.find(
     (entry) => entry.service_order_task_id === selectedTaskId && entry.status === "in_progress",
   );
+
+  useEffect(() => {
+    const selected = order.tasks.find((task) => task.id === selectedTaskId);
+    const next = order.tasks.find((task) => task.status !== "completed");
+    if (selected?.status === "completed" && next) setSelectedTaskId(next.id);
+  }, [order.tasks, selectedTaskId]);
 
   async function command(endpoint: string, method: string, data: Record<string, unknown>) {
     setPending(true);
@@ -198,11 +206,6 @@ function Task({
         </div>
       </CardHeader>
       <CardContent>
-        {task.item_snapshot.location_description ? (
-          <p className="mb-4 whitespace-pre-wrap rounded-md border p-3 text-sm">
-            <strong>{t("common.location")}:</strong> {task.item_snapshot.location_description}
-          </p>
-        ) : null}
         {currentItem?.photos.length ? (
           <div className="mb-4">
             <h3 className="mb-2 font-semibold text-sm">{t("execution.referencePhotos")}</h3>
@@ -263,6 +266,7 @@ function Guide({
   const [finding, setFinding] = useState("");
   const [findingSeverity, setFindingSeverity] = useState<OperationalStatus>("attention");
   const step = steps[index];
+  const displayedStep = step ? translateStandardStep(step, t) : undefined;
   const current = step ? results[step.id] : undefined;
   const requiredComplete = steps.every(
     (entry) =>
@@ -288,7 +292,7 @@ function Guide({
   }
   return (
     <div className="space-y-5">
-      {steps.length && step ? (
+      {steps.length && step && displayedStep ? (
         <>
           <div>
             <div className="mb-1 flex items-center justify-between text-sm">
@@ -298,23 +302,25 @@ function Guide({
             <Progress value={((index + 1) / steps.length) * 100} />
           </div>
           <section className="min-h-72 rounded-md border p-4">
-            {step.safety_warning ? (
+            {displayedStep.safety_warning ? (
               <div className="mb-4 flex gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
                 <AlertTriangle className="size-5 shrink-0" />
-                {step.safety_warning}
+                {displayedStep.safety_warning}
               </div>
             ) : null}
             <div className="mb-3 flex items-center gap-2">
-              {step.step_type === "warning" ? (
+              {displayedStep.step_type === "warning" ? (
                 <AlertTriangle className="size-5" />
-              ) : step.step_type === "information" ? (
+              ) : displayedStep.step_type === "information" ? (
                 <Info className="size-5" />
               ) : null}
-              <h3 className="font-semibold">{step.title}</h3>
-              {step.required ? <Badge variant="secondary">{t("common.required")}</Badge> : null}
+              <h3 className="font-semibold">{displayedStep.title}</h3>
+              {displayedStep.required ? <Badge variant="secondary">{t("common.required")}</Badge> : null}
             </div>
-            {step.description ? <p className="mb-2 text-muted-foreground text-sm">{step.description}</p> : null}
-            <p className="mb-5 whitespace-pre-wrap text-sm">{step.instructions}</p>
+            {displayedStep.description ? (
+              <p className="mb-2 text-muted-foreground text-sm">{displayedStep.description}</p>
+            ) : null}
+            <p className="mb-5 whitespace-pre-wrap text-sm">{displayedStep.instructions}</p>
             {inspection.category_snapshot.guide_reference_photos.some(
               (photo) => photo.owner_id === step.id && step.reference_photo_ids.includes(photo.id),
             ) ? (
@@ -337,7 +343,7 @@ function Guide({
                 </div>
               </div>
             ) : null}
-            <StepInput step={step} result={current} setResult={setResult} inspectionId={inspection.id} />
+            <StepInput step={displayedStep} result={current} setResult={setResult} inspectionId={inspection.id} />
           </section>
           <div className="flex justify-between">
             <Button variant="outline" disabled={index === 0} onClick={() => setIndex((value) => value - 1)}>
@@ -345,8 +351,14 @@ function Guide({
               {t("common.previous")}
             </Button>
             <Button
-              disabled={index === steps.length - 1 || (step.required && !current)}
-              onClick={() => setIndex((value) => value + 1)}
+              disabled={step.required && !current}
+              onClick={() => {
+                if (index < steps.length - 1) setIndex((value) => value + 1);
+                else
+                  document
+                    .getElementById(`inspection-result-${inspection.id}`)
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
             >
               {t("common.next")}
               <ChevronRight />
@@ -354,7 +366,10 @@ function Guide({
           </div>
         </>
       ) : null}
-      <section className="grid gap-3 border-t pt-4 sm:grid-cols-2">
+      <section
+        id={`inspection-result-${inspection.id}`}
+        className="grid scroll-mt-16 gap-3 border-t pt-4 sm:grid-cols-2"
+      >
         <h3 className="font-semibold sm:col-span-2">{t("execution.result")}</h3>
         <Field label={t("common.status")}>
           <select
@@ -402,6 +417,29 @@ function Guide({
   );
 }
 
+function translateStandardStep(step: MaintenanceGuideStep, t: ReturnType<typeof useI18n>["t"]): MaintenanceGuideStep {
+  if (step.id === SAFETY_STEP_ID)
+    return {
+      ...step,
+      title: t("execution.standard.safetyTitle"),
+      instructions: t("execution.standard.safetyInstructions"),
+      safety_warning: t("execution.standard.safetyWarning"),
+    };
+  if (step.id === BEFORE_PHOTO_STEP_ID)
+    return {
+      ...step,
+      title: t("execution.standard.beforePhotoTitle"),
+      instructions: t("execution.standard.beforePhotoInstructions"),
+    };
+  if (step.id === AFTER_PHOTO_STEP_ID)
+    return {
+      ...step,
+      title: t("execution.standard.afterPhotoTitle"),
+      instructions: t("execution.standard.afterPhotoInstructions"),
+    };
+  return step;
+}
+
 function StepInput({
   step,
   result,
@@ -421,17 +459,34 @@ function StepInput({
         {t("common.confirm")}
       </Button>
     );
-  if (step.step_type === "confirmation" || step.step_type === "boolean")
+  if (step.step_type === "confirmation")
     return (
-      <select
-        className="h-9 rounded-md border bg-background px-3 text-sm"
-        value={result?.value === true ? "true" : result?.value === false ? "false" : ""}
-        onChange={(event) => setResult(event.target.value === "true")}
+      <Button
+        type="button"
+        variant={result?.value === true ? "default" : "outline"}
+        aria-pressed={result?.value === true}
+        onClick={() => setResult(true)}
       >
-        <option value="">{t("common.select")}</option>
-        <option value="true">{t("common.confirm")}</option>
-        <option value="false">{t("common.cancel")}</option>
-      </select>
+        <Check />
+        {t("common.done")}
+      </Button>
+    );
+  if (step.step_type === "boolean")
+    return (
+      <RadioGroup
+        value={result?.value === true ? "true" : result?.value === false ? "false" : ""}
+        onValueChange={(value) => setResult(value === "true")}
+        className="max-w-sm grid-cols-2"
+      >
+        <Label className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md border px-3">
+          <RadioGroupItem value="true" />
+          {t("common.yes")}
+        </Label>
+        <Label className="flex min-h-10 cursor-pointer items-center gap-3 rounded-md border px-3">
+          <RadioGroupItem value="false" />
+          {t("common.no")}
+        </Label>
+      </RadioGroup>
     );
   if (step.step_type === "choice")
     return (

@@ -237,7 +237,8 @@ fn migrate_v1(legacy: LegacyStateV1) -> ApplicationState {
             .machine_items
             .iter()
             .filter(|item| item.machine_id == machine_id)
-            .count() as u32;
+            .count() as u32
+            + 1;
         state.machine_items.push(MachineItem {
             id,
             machine_id,
@@ -248,8 +249,8 @@ fn migrate_v1(legacy: LegacyStateV1) -> ApplicationState {
             complexity_level: ComplexityLevel::INTERMEDIATE,
             status: OperationalStatus::Unknown,
             position,
-            location_description: None,
             custom_field_values,
+            maintenance_guide_override: None,
             installed_component,
             replacement_specification,
             notes: None,

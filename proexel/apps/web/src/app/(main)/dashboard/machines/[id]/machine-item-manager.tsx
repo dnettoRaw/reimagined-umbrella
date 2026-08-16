@@ -196,8 +196,8 @@ function ItemForm({
       code: data.code,
       complexity_level: complexity,
       status: data.status || "unknown",
-      location_description: data.location_description || null,
       custom_field_values: values,
+      maintenance_guide_override: item?.maintenance_guide_override ?? null,
       notes: data.notes || null,
       replacement_specification: {
         manufacturer: data.replacement_manufacturer || null,
@@ -284,9 +284,6 @@ function ItemForm({
               </option>
             ))}
           </select>
-        </Field>
-        <Field label={t("machines.locationDescription")}>
-          <Input name="location_description" defaultValue={item?.location_description ?? ""} />
         </Field>
       </div>
       {!item ? (

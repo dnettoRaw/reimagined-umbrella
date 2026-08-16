@@ -25,7 +25,13 @@ export function AppSidebar({
   user,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
-  readonly user: { name: string; email: string; role: "admin" | "chefe" | "compras" | "tecnico"; avatar: string };
+  readonly user: {
+    id: string;
+    name: string;
+    email: string;
+    role: "admin" | "chefe" | "compras" | "tecnico";
+    avatar: string;
+  };
 }) {
   const { sidebarVariant, sidebarCollapsible, isSynced } = usePreferencesStore(
     useShallow((s) => ({
@@ -53,7 +59,7 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={sidebarItems} role={user.role} />
+        <NavMain items={sidebarItems} role={user.role} operatorId={user.id} />
         {/* <NavDocuments items={data.documents} /> */}
         {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>

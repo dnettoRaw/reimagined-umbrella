@@ -75,7 +75,6 @@ test("representative roles complete the machine maintenance workflow", async ({ 
     code: `ITEM-${suffix}`,
     complexity_level: 2,
     status: "unknown",
-    location_description: "Lado direito, sob a proteção superior.",
     custom_field_values: {},
     installed_component: {
       manufacturer: "WEG",
@@ -127,7 +126,37 @@ test("representative roles complete the machine maintenance workflow", async ({ 
   await page.goto(`/dashboard/execution/${orderId}`);
   await page.getByRole("button", { name: "Iniciar ordem" }).click();
   await page.getByRole("button", { name: "Iniciar inspeção" }).click();
-  await page.locator("section select").first().selectOption("true");
+  const nextStep = page.getByRole("button", { name: "Seguinte" });
+  await expect(nextStep).toBeDisabled();
+  await page.getByRole("button", { name: "Feito" }).click();
+  await expect(nextStep).toBeEnabled();
+  await nextStep.click();
+  const inspectionPhoto = page.locator('input[type="file"]');
+  await page.getByLabel("Finalidade").selectOption("before");
+  await inspectionPhoto.setInputFiles({
+    name: "before.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await expect(nextStep).toBeEnabled();
+  await nextStep.click();
+  await page.getByRole("button", { name: "Feito" }).click();
+  await nextStep.click();
+  await page.getByLabel("Finalidade").selectOption("after");
+  await inspectionPhoto.setInputFiles({
+    name: "after.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await expect(nextStep).toBeEnabled();
+  await nextStep.click();
+  await expect(page.getByRole("heading", { name: "Resultado" })).toBeInViewport();
   await page.getByRole("button", { name: "Concluir inspeção" }).click();
   await expect(page.getByText("1 de 1 concluídos")).toBeVisible();
   await page.getByRole("button", { name: "Concluir ordem" }).click();

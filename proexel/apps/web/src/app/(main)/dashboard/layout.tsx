@@ -8,6 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { SIDEBAR_COLLAPSIBLE_VALUES, SIDEBAR_VARIANT_VALUES } from "@/lib/preferences/layout";
 import { requireSession } from "@/lib/proexel/auth-server";
+import { DemoClientBridge, DemoResetButton } from "@/lib/proexel/demo-client";
+import { isDemoMode } from "@/lib/proexel/demo-service";
 import { cn } from "@/lib/utils";
 import { getPreference } from "@/server/server-actions";
 
@@ -17,6 +19,7 @@ import { ThemeSwitcher } from "./_components/sidebar/theme-switcher";
 
 export default async function Layout({ children }: Readonly<{ children: ReactNode }>) {
   const session = await requireSession();
+  const demo = isDemoMode();
   const cookieStore = await cookies();
   const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
   const [variant, collapsible] = await Promise.all([
@@ -36,7 +39,7 @@ export default async function Layout({ children }: Readonly<{ children: ReactNod
       <AppSidebar
         variant={variant}
         collapsible={collapsible}
-        user={{ name: session.name, email: session.email, role: session.role, avatar: "" }}
+        user={{ id: session.sub, name: session.name, email: session.email, role: session.role, avatar: "" }}
       />
       <SidebarInset
         className={cn(
@@ -64,6 +67,7 @@ export default async function Layout({ children }: Readonly<{ children: ReactNod
               <SearchDialog role={session.role} />
             </div>
             <div className="flex items-center gap-2">
+              {demo ? <DemoResetButton /> : null}
               <LocaleSwitcher compact />
               <LayoutControls />
               <ThemeSwitcher />
@@ -74,6 +78,7 @@ export default async function Layout({ children }: Readonly<{ children: ReactNod
         <div className="h-full p-4 has-data-[content-padding=false]:p-0 md:p-6 md:has-data-[content-padding=false]:p-0">
           {children}
         </div>
+        {demo ? <DemoClientBridge /> : null}
       </SidebarInset>
     </SidebarProvider>
   );

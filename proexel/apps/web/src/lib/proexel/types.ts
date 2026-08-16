@@ -175,8 +175,8 @@ export interface MachineItem {
   complexity_level: ComplexityLevel;
   status: OperationalStatus;
   position: number;
-  location_description?: string | null;
   custom_field_values: Record<string, unknown>;
+  maintenance_guide_override?: MaintenanceGuide | null;
   installed_component?: InstalledComponent | null;
   replacement_specification: ReplacementSpecification;
   notes?: string | null;
@@ -224,7 +224,6 @@ export interface MachineItemSnapshot {
   name: string;
   code: string;
   complexity_level: ComplexityLevel;
-  location_description?: string | null;
   installed_component?: InstalledComponent | null;
 }
 
@@ -246,7 +245,7 @@ export interface ServiceOrderTask {
 export interface ServiceOrder {
   id: string;
   machine_id: string;
-  machine_snapshot: { id: string; code: string; name: string; zone: string };
+  machine_snapshot: { id: string; code: string; name: string; zone: string; location?: string | null };
   description: string;
   priority: "low" | "normal" | "high" | "urgent";
   status: ServiceOrderStatus;

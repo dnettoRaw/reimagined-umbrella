@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { ChevronRight, PlusCircleIcon } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -28,9 +28,12 @@ import { useI18n } from "@/lib/i18n/provider";
 import type { Role } from "@/lib/proexel/types";
 import type { NavGroup, NavMainItem } from "@/navigation/sidebar/sidebar-items";
 
+import { MyOrdersDialog } from "./my-orders-dialog";
+
 interface NavMainProps {
   readonly items: readonly NavGroup[];
   readonly role: Role;
+  readonly operatorId: string;
 }
 
 const IsComingSoon = ({ label }: { readonly label: string }) => (
@@ -147,7 +150,7 @@ const NavItemCollapsed = ({
   );
 };
 
-export function NavMain({ items, role }: NavMainProps) {
+export function NavMain({ items, role, operatorId }: NavMainProps) {
   const path = usePathname();
   const { t } = useI18n();
   const { state, isMobile } = useSidebar();
@@ -165,22 +168,11 @@ export function NavMain({ items, role }: NavMainProps) {
 
   return (
     <>
-      {role === "admin" || role === "chefe" ? (
+      {role !== "compras" ? (
         <SidebarGroup>
           <SidebarGroupContent className="flex flex-col gap-2">
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  tooltip={t("nav.createMachine")}
-                  className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
-                >
-                  <Link href="/dashboard/machines">
-                    <PlusCircleIcon />
-                    <span>{t("nav.createMachine")}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              <MyOrdersDialog role={role} operatorId={operatorId} />
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

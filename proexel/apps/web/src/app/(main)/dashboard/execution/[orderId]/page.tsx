@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
 
+import { MapPin } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
 import { getI18n } from "@/lib/i18n/server";
 import { requirePermission } from "@/lib/proexel/auth-server";
 import { listInspections, listMachines, listServiceOrders } from "@/lib/proexel/service";
@@ -27,6 +30,12 @@ export default async function ExecutionDetailPage({ params }: { readonly params:
         title={`${order.machine_snapshot.code} · ${order.machine_snapshot.name}`}
         description={t("execution.description")}
       />
+      <div className="mb-4 flex flex-wrap items-center gap-2 border-y py-3 text-sm">
+        <MapPin className="size-4 text-muted-foreground" />
+        <strong>{t("common.location")}:</strong>
+        <span>{order.machine_snapshot.location || "-"}</span>
+        <Badge variant="secondary">{order.machine_snapshot.zone}</Badge>
+      </div>
       <InspectionRunner
         order={order}
         inspections={inspections.items}
